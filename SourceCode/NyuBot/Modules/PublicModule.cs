@@ -13,7 +13,7 @@ namespace _02_commands_framework.Modules
         public PictureService PictureService { get; set; }
 
         [Command("ping")]
-        [Alias("pong", "hello")]
+        //[Alias("pong")]
         public Task PingAsync()
             => ReplyAsync("pong!");
 

@@ -42,9 +42,9 @@ namespace _02_commands_framework.Services
             // This value holds the offset where the prefix ends
             var argPos = 0;
             // Perform prefix check. You may want to replace this with
-            // (!message.HasCharPrefix('!', ref argPos))
+            if (!message.HasCharPrefix('!', ref argPos)) return;
             // for a more traditional command format like !help.
-            if (!message.HasMentionPrefix(_discord.CurrentUser, ref argPos)) return;
+            //if (!message.HasMentionPrefix(_discord.CurrentUser, ref argPos)) return;
 
             var context = new SocketCommandContext(_discord, message);
             // Perform the execution of the command. In this method,
