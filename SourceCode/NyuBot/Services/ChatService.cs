@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
+using Discord.Rest;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -28,10 +29,10 @@ namespace NyuBot {
 		
 		public async Task MessageReceivedAsync(SocketMessage rawMessage) {
 			
-			if (!(rawMessage is SocketUserMessage message)) return;
-			if (message.Source != MessageSource.User) return;
-			if (string.IsNullOrEmpty(message.Content)) return;
-
+			if (!(rawMessage is SocketUserMessage userMessage)) return;
+			if (userMessage.Source != MessageSource.User) return;
+			if (string.IsNullOrEmpty(userMessage.Content)) return;
+			
 			#region Setup message string to read
 			
 			// Content of the message in lower case string.
@@ -50,7 +51,7 @@ namespace NyuBot {
 			}
 			bool userSaidHerName = false;
 			// if user sayd her name
-			if (HasAtLeastOneWord(messageString, new[] { "akame", "akeme" })) {
+			if (HasAtLeastOneWord(messageString, new[] { "nyu", "nuy" })) {
 				userSaidHerName = true;
 				messageString = RemoveBotNameFromMessage(messageString);
 			}
@@ -65,10 +66,10 @@ namespace NyuBot {
 
 			// See if message is empty now
 			if (messageString.Length <= 0) {
-				// if (userSaidHerName) {
-				// 	await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(_discord, ":question:"));
-				// }
-				// return null;
+				if (userSaidHerName) {
+					await userMessage.AddReactionAsync(new Emoji(":question:"));
+				}
+				return;
 			}
 
 			#endregion
@@ -78,39 +79,46 @@ namespace NyuBot {
 			// Fast Tests
 			if (messageString == ("ping")) {
 				await rawMessage.Channel.SendMessageAsync("pong");
+				return;
 			}
 			if (messageString == ("pong")) {
 				await rawMessage.Channel.SendMessageAsync("ping");
+				return;
 			}
 
 			if (messageString == ("marco")) {
 				await rawMessage.Channel.SendMessageAsync("polo");
+				return;
 			}
 			if (messageString == ("polo")) {
 				await rawMessage.Channel.SendMessageAsync("marco");
+				return;
 			}
 
 			if (messageString == ("dotto")) {
 				await rawMessage.Channel.SendMessageAsync("Dotto. :musical_note:");
+				return;
 			}
 
 			if (messageString == "❤" || messageString == ":heart:") {
 				await rawMessage.Channel.SendMessageAsync("❤");
+				return;
 			}
 
 			if (messageString == ":broken_heart:" || messageString == "💔") {
 				await rawMessage.Channel.SendMessageAsync("❤");
-				await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":cry:"));
-				return null;
+				await userMessage.AddReactionAsync(new Emoji(":cry:"));
+				return;
 			}
 
 			if (messageString == ("ne") || messageString == ("neh")) {
-				return ChooseAnAnswer(new[] { "Isso ai.", "Pode crê.", "Boto fé." });
+				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] { "Isso ai.", "Pode crê.", "Boto fé." }));
+				return;
 			}
 
 			if (messageString == ("vlw") || messageString == ("valeu") || messageString == ("valew")) {
-				await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":wink:"));
-				return null;
+				await userMessage.AddReactionAsync(new Emoji(":wink:"));
+				return;
 			}
 
 			// see if message is an Hi
@@ -125,7 +133,8 @@ namespace NyuBot {
 				|| messageString == "oi galera"
 				|| messageString == "dae galera"
 				) {
-				return ChooseAnAnswer(new[] { "Oi.", "Olá.", "Hello.", "Coé.", "Oin." });
+					await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] { "Oi.", "Olá.", "Hello.", "Coé.", "Oin." }));
+					return;
 			}
 
 			// see if message has an BYE
@@ -140,7 +149,8 @@ namespace NyuBot {
 				|| messageString == "falous"
 				|| messageString.Contains(" flw")
 				) {
-				return ChooseAnAnswer(new[] { "Tchau.", "Xiau.", "Bye bye.", "Flw." });
+				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] { "Tchau.", "Xiau.", "Bye bye.", "Flw." }));
+				return;
 			}
 
 			if (messageString == ":frowning:"
@@ -152,11 +162,9 @@ namespace NyuBot {
 
 			if (messageString.Contains("kk")) {
 				if (Randomize().Next(100) < 20) {
-					return "kkk eae men.";
+					await userMessage.Channel.SendMessageAsync("kkk eae men.");
 				}
-				else {
-					return null;
-				}
+				return;
 			}
 
 			#endregion
@@ -164,64 +172,27 @@ namespace NyuBot {
 			#region Erase BotsCommands
 
 			if (
-				messageString.StartsWith(".")
-				) {
-				await Task.Delay(1000 * 2); // 1 second
-				await rawMessage.DeleteAsync();
-				return null;
-			}
-
-			if (
-				messageString.StartsWith(",")
-				) {
-				await Task.Delay(1000 * 2); // 1 second
-				await rawMessage.DeleteAsync();
-				return null;
-			}
-
-			if (
-				messageString.StartsWith(";;")
-				) {
-				await Task.Delay(1000 * 2); // 1 second
-				await rawMessage.DeleteAsync();
-				return null;
-			}
-
-			if (
+				messageString.StartsWith(".") ||
+				messageString.StartsWith(",") ||
+				messageString.StartsWith(";;") ||
 				messageString.StartsWith("!")
 				) {
-				await Task.Delay(1000 * 2); // 1 second
-				await rawMessage.DeleteAsync();
-				return null;
-			}
-
-			if (
-				messageString.StartsWith(">")
-				) {
-				await Task.Delay(1000 * 2); // 1 second
-				await rawMessage.DeleteAsync();
-				return null;
+					await userMessage.AddReactionAsync(new Emoji(":x:"));
+					await Task.Delay(1000 * 2); // 1 second
+					await userMessage.DeleteAsync();
+					return;
 			}
 
 			#endregion
 
-			#region Reactions
 
-			if (
-				messageString.Contains("overwatch")
-				) {
-				await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":angry:"));
-				return null;
-			}
-
-			#endregion
-
-			#region Akame
-			// check if user said akame / akeme
+			#region Nyu
+			// check if user said nyu / nuy
 			if (userSaidHerName) {
 				if (HasAtLeastOneWord(messageString, new[] { "serve", "faz" })) {
 					if (isQuestion) {
-						return "Sou um bot que responde diversas perguntas sobre assuntos comuns aqui no servidor. Com o tempo o Chris me atualiza com mais respostas e reações.";
+						await userMessage.Channel.SendMessageAsync("Sou um bot que responde diversas perguntas sobre assuntos comuns aqui no servidor. Com o tempo o Chris me atualiza com mais respostas e reações.");
+						return;
 					}
 				}
 
@@ -232,15 +203,9 @@ namespace NyuBot {
 					|| messageString == ("quero te come")
 					|| messageString == ("quero te pega")
 					) {
-					await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":angry:"));
-					return "Não pode.";
-				}
-
-				if (messageString == ("que horas voce vai dar")
-					|| messageString == ("que horas voce vai me dar")
-					) {
-					return "Se pudesse dava um murro na sua cara toda hora lixo.";
-
+					await userMessage.AddReactionAsync(new Emoji(":angry:"));
+					await userMessage.Channel.SendMessageAsync("Não pode.");
+					return;
 				}
 
 				// Praises
@@ -261,8 +226,8 @@ namespace NyuBot {
 					|| messageString == ("obrigado")
 					|| messageString == ("obrigada")
 					) {
-					await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":heart:"));
-					return null;
+					await userMessage.AddReactionAsync(new Emoji( ":heart:"));
+					return;
 				}
 
 				if (messageString == ("casa comigo")
@@ -270,12 +235,6 @@ namespace NyuBot {
 					) {
 					await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":thinking:"));
 					return "Melhor não. Isso não iria dar certo.";
-				}
-
-				if (messageString.Contains("qual seu nome verdadeiro")) {
-					if (isQuestion) {
-						return "É só Akame mesmo.";
-					}
 				}
 
 				if (messageString.Contains("responde") && messageString.Contains("tudo")) {
@@ -653,8 +612,8 @@ namespace NyuBot {
 		/// Removes bot string from message, and trim string, also set a boolean.
 		/// </summary>
 		public static string RemoveBotNameFromMessage(string messageString) {
-			messageString = messageString.Replace("akame", "");
-			messageString = messageString.Replace("akeme", "");
+			messageString = messageString.Replace("nyu", "");
+			messageString = messageString.Replace("nuy", "");
 			messageString = messageString.Trim();
 			return messageString;
 		}
