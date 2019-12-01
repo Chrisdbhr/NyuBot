@@ -5,7 +5,6 @@ using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
-using Discord.Rest;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -149,22 +148,15 @@ namespace NyuBot {
 				|| messageString == "falous"
 				|| messageString.Contains(" flw")
 				) {
-				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] { "Tchau.", "Xiau.", "Bye bye.", "Flw." }));
-				return;
-			}
-
-			if (messageString == ":frowning:"
-				|| messageString == ":frowning2:"
-				|| messageString == ":slight_frown:"
-				) {
-
+					await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] { "Tchau.", "Xiau.", "Bye bye.", "Flw." }));
+					return;
 			}
 
 			if (messageString.Contains("kk")) {
 				if (Randomize().Next(100) < 20) {
 					await userMessage.Channel.SendMessageAsync("kkk eae men.");
+					return;
 				}
-				return;
 			}
 
 			#endregion
@@ -203,9 +195,9 @@ namespace NyuBot {
 					|| messageString == ("quero te come")
 					|| messageString == ("quero te pega")
 					) {
-					await userMessage.AddReactionAsync(new Emoji(":angry:"));
-					await userMessage.Channel.SendMessageAsync("Não pode.");
-					return;
+						await userMessage.AddReactionAsync(new Emoji(":angry:"));
+						await userMessage.Channel.SendMessageAsync("Não pode.");
+						return;
 				}
 
 				// Praises
@@ -226,26 +218,13 @@ namespace NyuBot {
 					|| messageString == ("obrigado")
 					|| messageString == ("obrigada")
 					) {
-					await userMessage.AddReactionAsync(new Emoji( ":heart:"));
-					return;
-				}
-
-				if (messageString == ("casa comigo")
-					|| messageString == ("casa cmg")
-					) {
-					await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":thinking:"));
-					return "Melhor não. Isso não iria dar certo.";
-				}
-
-				if (messageString.Contains("responde") && messageString.Contains("tudo")) {
-					if (isQuestion) {
-						await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":relaxed:"));
-						return "Sim. Eu tento.";
-					}
+						await userMessage.AddReactionAsync(new Emoji( ":heart:"));
+						return;
 				}
 
 				if (messageString.Contains("manda nude")) {
-					await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":lennyFace:"));
+					await userMessage.AddReactionAsync(new Emoji( ":lennyFace:"));
+					return;
 				}
 
 			}
@@ -259,87 +238,86 @@ namespace NyuBot {
 				|| messageString.Contains("boku no piku")
 				|| messageString.Contains("boku no piku")
 				) {
-				return e.Author.Mention + " Gay.";
+					await userMessage.Channel.SendMessageAsync(userMessage.Author.Mention + " Gay.");
+					return;
 			}
-
-			if (messageString.Contains("melhor anime")) {
-				if (isQuestion) {
-					return "Elfen Lied é o melhor anime. E ponto.";
-				}
-			}
-
-			if (messageString.Contains("pior anime")) {
-				if (isQuestion) {
-					return "Ainda não sei qual o pior anime.";
-				}
-			}
-
+			
 			#endregion
 
 			#region Memes
 			// Ahhh agora eu entendi
 			if (messageString.EndsWith("agora eu entendi")) {
-				return ChooseAnAnswer(new[] { "Agora eu saqueeeeei!", "Agora tudo faz sentido!", "Eu estava cego agora estou enchergaaaando!", "Agora tudo vai mudar!", "Agora eu vou ficar de olhos abertos!" });
-
-			}
-
-			// react to gemiao do zap
-			if (messageString.Contains("gemidao")) {
-				await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":rolling_eyes:"));
-				return "Lá vem...";
+				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] { "Agora eu saqueeeeei!", "Agora tudo faz sentido!", "Eu estava cego agora estou enchergaaaando!", "Agora tudo vai mudar!", "Agora eu vou ficar de olhos abertos!" }));
+				return;
 			}
 
 			#region Teu cu na minha mao
 			// all possible answers
 			if (messageString.Contains("mo vacilao") || messageString.Contains("mo vacilaum")) {
-				return "''Hmmmm vacilão... Teu cu na minha mao.''";
+				await userMessage.Channel.SendMessageAsync( "''Hmmmm vacilão... Teu cu na minha mao.''");
+				return;
 			}
 			if (messageString.Contains("teu cu na minha mao")) {
-				return "''Teu cu e o aeroporto meu pau e o avião.''";
+				await userMessage.Channel.SendMessageAsync("''Teu cu e o aeroporto meu pau e o avião.''");
+				return;
 			}
 			if (messageString.Contains("teu cu e o aeroporto meu pau e o aviao")) {
-				return "''Teu cu é a garagem meu pau é o caminhão.''";
+				await userMessage.Channel.SendMessageAsync( "''Teu cu é a garagem meu pau é o caminhão.''");
+				return;
 			}
 			if (messageString.Contains("teu cu e a garagem meu pau e o caminhao")) {
-				return "''Teu cu é a Carminha meu pau é o Tufão (ãnh?).''";
+				await userMessage.Channel.SendMessageAsync( "''Teu cu é a Carminha meu pau é o Tufão (ãnh?).''");
+				return;
 			}
 			if (HasAllWords(messageString, new[] { "teu cu", "meu pau", "tufao" })) {
-				return "''Teu cu é o mar meu pau é o tubarão.''";
+				await userMessage.Channel.SendMessageAsync( "''Teu cu é o mar meu pau é o tubarão.''");
+				return;
 			}
 			if (messageString.Contains("teu cu e o mar meu pau e o tubarao")) {
-				return "''Teu cu é o morro meu pau é o Complexo do Alemão.''";
+				await userMessage.Channel.SendMessageAsync( "''Teu cu é o morro meu pau é o Complexo do Alemão.''");
+				return;
 			}
 			if (messageString.Contains("teu cu e o morro meu pau e o complexo do alemao")) {
-				return "''Caraaalho, sem nexo.''";
+				await userMessage.Channel.SendMessageAsync( "''Caraaalho, sem nexo.''");
+				return;
 			}
 			if (messageString.Contains("sem nexo")) {
-				return "''Teu cu é o cabelo meu pau é o reflexo.''";
+				await userMessage.Channel.SendMessageAsync( "''Teu cu é o cabelo meu pau é o reflexo.''");
+				return;
 			}
 			if (HasAllWords(messageString, new[] { "teu cu e o cabelo", "meu pau e reflexo" })) {
-				return "''Teu cu é o Moon Walker meu pau é o Michael Jackson.''";
+				await userMessage.Channel.SendMessageAsync( "''Teu cu é o Moon Walker meu pau é o Michael Jackson.''");
+				return;
 			}
 			if (HasAllWords(messageString, new[] { "teu cu e o", "meu pau e o" })
 				&& (HasAtLeastOneWord(messageString, new[] { "michael", "mickael", "maicow", " maycow", " maico", "jackson", "jackso", "jakso", "jakson", "jequiso", "jequison" })
 				|| HasAtLeastOneWord(messageString, new[] { " moon ", " mun ", "walker", "walk", " uauquer" }))) {
-				return "''Ãhhnnnn Michael Jackson já morreu...''";
+				await userMessage.Channel.SendMessageAsync( "''Ãhhnnnn Michael Jackson já morreu...''");
+				return;
 			}
 			if (messageString.Contains("ja morreu") && HasAtLeastOneWord(messageString, new[] { "michael", "maicow", " maycow", " maico", "jackson", "jackso", "jakso", "jakson", "jequiso", "jequison" })) {
-				return "''Teu cu é a Julieta meu pau é o Romeu.''";
+				await userMessage.Channel.SendMessageAsync( "''Teu cu é a Julieta meu pau é o Romeu.''");
+				return;
 			}
 			if (messageString.Contains("tu cu e a julieta") && messageString.Contains("meu pau e o romeu")) {
-				return "''Caraaalho, nada a vê.''";
+				await userMessage.Channel.SendMessageAsync( "''Caraaalho, nada a vê.''");
+				return;
 			}
 			if (messageString.StartsWith("nada a ve") || messageString == ("nada ve")) {
-				return "''Teu cu pisca meu pau acende.''";
+				await userMessage.Channel.SendMessageAsync( "''Teu cu pisca meu pau acende.''");
+				return;
 			}
 			if (messageString.Contains("teu cu pisca") && messageString.Contains("meu pau acende")) {
-				return "''Teu cu é a Globo meu pau é o SBT.''";
+				await userMessage.Channel.SendMessageAsync( "''Teu cu é a Globo meu pau é o SBT.''");
+				return;
 			}
 			if (messageString.Contains("teu cu e a globo") && messageString.Contains("meu pau e o sbt")) {
-				return "''Aahhh vai toma no cu.''";
+				await userMessage.Channel.SendMessageAsync( "''Aahhh vai toma no cu.''");
+				return;
 			}
-			if ((messageString.Contains("toma no cu"))) {
-				return "''Teu cu é o Pokemon meu pau é o Pikachu.''";
+			if (messageString.Contains("toma no cu")) {
+				await userMessage.Channel.SendMessageAsync( "''Teu cu é o Pokemon meu pau é o Pikachu.''");
+				return;
 			}
 
 			#endregion
@@ -349,19 +327,14 @@ namespace NyuBot {
 
 			#region General
 			if (messageString == "alguem ai") {
-				return "Eu. Mas sou um bot então não vou conseguir ter respostas para todas as suas perguntas.";
-
+				await userMessage.Channel.SendMessageAsync( "Eu. Mas sou um bot então não vou conseguir ter respostas para todas as suas perguntas.");
+				return;
 			}
 
 			if (messageString.Contains("que horas sao")) {
 				if (isQuestion) {
-					return "É hora de acertar as contas...";
-				}
-			}
-
-			if (messageString.Contains("a justica")) {
-				if (isQuestion) {
-					return "Vem de cima!";
+					await userMessage.Channel.SendMessageAsync( "É hora de acertar as contas...");
+					return;
 				}
 			}
 
@@ -373,8 +346,9 @@ namespace NyuBot {
 			if (messageString.Contains("bot lixo")
 				|| messageString.Contains("suamaeeminha")
 				) {
-				await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":eyes:"));
-				return "Algum problema " + rawMessage.Author.Mention + "?";
+					await userMessage.AddReactionAsync(new Emoji( ":eyes:"));
+					await userMessage.Channel.SendMessageAsync( "Algum problema " + rawMessage.Author.Mention + "?");
+					return;
 			}
 
 			#endregion
@@ -382,53 +356,30 @@ namespace NyuBot {
 			#region Links
 
 			#region Black Yeast
-			// Firsts
 
+			// Firsts
 			if (HasAllWords(messageString, new[] { "black", "yeast" })) {
 				// user is speaking about Black Yeast.
-
-				// if user is asking about release date.
-				if (messageString.Contains("quando") && HasAtLeastOneWord(messageString, new[] { "lanca", "sai" })) {
-					return "2018 ~ 2019 " + e.Author.Mention + ". Esse ano vai ser lançada uma versão testes pública do jogo.";
-				}
-
-				// asking for the site
-				if (messageString.Contains("patreon")) {
-					return e.Author.Mention + " esse é o link para o **Patreon** do Black Yeast: https://www.patreon.com/BlackYeastGame \nlá as pessoas podem contribuir financeiramente para o desenvolvimento do projeto.";
-				}
-
-				// asking for the blog
-				if (messageString.Contains("blog")) {
-					return e.Author.Mention + " esse é o link para o **blog** do Black Yeast: https://blackyeast.wordpress.com \nlá tem vários links para o fórum, Patreon e outras informações do projeto. :3";
-				}
-
-				// asking for the blog
-				if (messageString.Contains("forum")) {
-					return e.Author.Mention + " esse é o link para o **forum** do Black Yeast: https://www.reddit.com/r/blackyeast \nAgora no Reddit, fica melhor e mais fácil de postar e se achar.";
-				}
-
-				// asking for the site
-				if (messageString.Contains("site")) {
-					return e.Author.Mention + " esse é o link para o **site** do Black Yeast: http://blackyeast.github.io \nLá tem várias informações e links para as outras redes do projeto!";
-				}
-
-				// if its not one of that
-				// ignore it
+				await userMessage.Channel.SendMessageAsync( rawMessage.Author.Mention + " foi pausado por tempo indeterminado. Veja mais detalhes no site: https://chrisdbhr.github.io/blackyeast");
+				return;
 			}
 
 			#endregion
 
 			#region Canal
 			if (HasAllWords(messageString, new[] { "canal", "youtube", "chris" })) {
-				return "Se quer saber qual o canal do Chris o link é esse: https://www.youtube.com/christopher7";
+				await userMessage.Channel.SendMessageAsync( "Se quer saber qual o canal do Chris o link é esse: https://www.youtube.com/christopher7");
+				return;
 			}
 
 			if (messageString.Contains("chris") && HasAtLeastOneWord(messageString, new[] { "face", "facebook" })) {
-				return "O link para o Facebook do Chris é esse: https://www.facebook.com/chrisdbhr";
+				await userMessage.Channel.SendMessageAsync( "O link para o Facebook do Chris é esse: https://www.facebook.com/chrisdbhr");
+				return;
 			}
 
 			if (messageString.Contains("twitch") && HasAtLeastOneWord(messageString, new[] { "seu", "canal" })) {
-				return "O link para o Twitch do Chris é esse: https://www.twitch.tv/chrisdbhr";
+				await userMessage.Channel.SendMessageAsync( "O link para o Twitch do Chris é esse: https://www.twitch.tv/chrisdbhr");
+				return;
 			}
 			#endregion
 
@@ -440,7 +391,9 @@ namespace NyuBot {
 				if (userSaidHerName) {
 					string readFile = File.ReadAllText("unknownCommands.txt");
 					if (readFile != null && readFile.Length > 0) {
-						return "Quando alguém fala algo que eu não conheço eu guardo em uma lista para o Chris ver depois. Essa é a lista de comandos que podem vir a receber respostas futuramente: " + Environment.NewLine + "`" + readFile + "`";
+						string trimmedMsg = "Quando alguém fala algo que eu não conheço eu guardo em uma lista para o Chris ver depois. Essa é a lista de comandos que podem vir a receber respostas futuramente: " + Environment.NewLine + "`" + readFile + "`";
+						await userMessage.Channel.SendMessageAsync(trimmedMsg.Substring(0, 1999));
+						return;
 					}
 				}
 			}
@@ -448,7 +401,7 @@ namespace NyuBot {
 			// Best animes list
 			if (userSaidHerName) {
 				if (messageString == ("add a lista de melhores animes")) {
-					messageString.Replace("add a lista de melhores animes", "");
+					messageString = messageString.Replace("add a lista de melhores animes", "");
 					string filePath = "Lists/bestAnimes.txt";
 					messageString.Trim();
 					string file = File.ReadAllText(filePath);
@@ -456,21 +409,24 @@ namespace NyuBot {
 					// first, compare if the text to save its not to big
 					if (messageString.Length > 48) {
 						// ignore the message because it can be spam
-						return null;
+						return;
 					}
 
 					// check if the txt its not biggen then 10mb
 					FileInfo fileInfo = new FileInfo(file);
 					if (fileInfo.Length > 10 * 1000000) {
-						return "<@203373041063821313> eu tentei adicionar o texto que o " + e.Author.Username + " digitou mas o arquivo de lista de melhores animes alcançou o tamanho limite. :sob:";
+						await userMessage.Channel.SendMessageAsync("<@203373041063821313> eu tentei adicionar o texto que o " + userMessage.Author.Mention + " digitou mas o arquivo de lista de melhores animes alcançou o tamanho limite. :sob:");
+						return;
 					}
 					// see if the anime is already on the list
 					if (file.Contains(messageString)) {
-						return "O anime " + @"`{messageString}` ja esta na lista de melhores animes.";
+						await userMessage.Channel.SendMessageAsync( "O anime " + @"`{messageString}` ja esta na lista de melhores animes.");
+						return;
 					}
 					else {
 						File.AppendAllText(filePath, Environment.NewLine + messageString);
-						return "Adicionado " + @"`{messageString}` a lista de melhores animes. :wink:";
+						await userMessage.Channel.SendMessageAsync( "Adicionado " + @"`{messageString}` a lista de melhores animes. :wink:");
+						return;
 					}
 				}
 			}
@@ -492,7 +448,8 @@ namespace NyuBot {
 					answerText.Append(" | ");
 				}
 				answerText.AppendLine("```");
-				return answerText.ToString().Substring(0, stringMaxLength - 3) + "...";
+				await userMessage.Channel.SendMessageAsync( answerText.ToString().Substring(0, stringMaxLength - 3) + "...");
+				return;
 			}
 
 			// Best Animes List
@@ -502,30 +459,32 @@ namespace NyuBot {
 					string file = File.ReadAllText(filePath);
 					if (!string.IsNullOrEmpty(file)) {
 						// return the list
-						return "Lista de melhores animes:" + $"{file}";
+						await userMessage.Channel.SendMessageAsync( "Lista de melhores animes:" + $"{file}");
 					}
 					else {
 						// Create file if not exists
 						File.WriteAllText(filePath, "");
 					}
+					return;
 				}
 			}
 
-			//! MUST BE AT THE LAST
+			//!!! THIS PART OF THE CODE BELOW MUST BE AS THE LAST BECAUSE:
 			// see if user sayd only bot name on message with some other things and she has no answer yet
 			if (userSaidHerName) {
 				string unknownCommandsFileName = "Lists/unknownCommands.txt";
-				string textToWrite = messageString + $"	({e.Author.Username})";
+				string textToWrite = messageString + $"	({userMessage.Author.Username})";
 				// first, compare if the text to save its not to big
 				if (textToWrite.Length > 48) {
 					// ignore the message because it can be spam
-					return null;
+					return;
 				}
 
 				// check if the txt its not biggen then 10mb
 				FileInfo fileInfo = new FileInfo(unknownCommandsFileName);
 				if (fileInfo.Length > 10 * 1000000) {
-					return "<@203373041063821313> eu tentei adicionar o texto que o " + e.Author.Username + " digitou mas o arquivo de lista de comandos alcançou o tamanho limite. :sob:";
+					await userMessage.Channel.SendMessageAsync( "<@203373041063821313> eu tentei adicionar o texto que o " + userMessage.Author.Username + " digitou mas o arquivo de lista de comandos alcançou o tamanho limite. :sob:");
+					return;
 				}
 
 				// get text in string
@@ -534,20 +493,22 @@ namespace NyuBot {
 					// only write if the unknown text is NOT already on the file
 					if (!fileContent.Contains(messageString)) {
 						File.AppendAllText(unknownCommandsFileName, textToWrite + Environment.NewLine);
-						await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":grey_question:"));
+						await userMessage.AddReactionAsync(new Emoji(":grey_question:"));
+						return;
 					}
 				}
 				else {
 					File.AppendAllText(unknownCommandsFileName, textToWrite + Environment.NewLine);
-					await rawMessage.CreateReactionAsync(DiscordEmoji.FromName(Client, ":grey_question:"));
+					await userMessage.AddReactionAsync(new Emoji( ":grey_question:"));
+					return;
 				}
 				// return "Ainda não tenho resposta para isso:\n" + "`" + messageString + "`";
-				return null;
+				return;
 			}
 			#endregion
+			
 
-			// the message has no answer.
-			return null;
+			// if arrived here, the message has no answer.
 		}
 
 		/// <summary>
