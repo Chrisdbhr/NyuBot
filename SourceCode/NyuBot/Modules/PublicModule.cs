@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
 using _02_commands_framework.Services;
+using NyuBot;
 
 namespace _02_commands_framework.Modules
 {
@@ -11,6 +12,7 @@ namespace _02_commands_framework.Modules
     {
         // Dependency Injection will fill this value in for us
         public PictureService PictureService { get; set; }
+        public ChatService ChatService { get; set; }
 
         [Command("ping")]
         //[Alias("pong")]

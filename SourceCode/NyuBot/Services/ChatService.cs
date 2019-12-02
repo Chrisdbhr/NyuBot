@@ -15,6 +15,7 @@ namespace NyuBot {
 		private readonly DiscordSocketClient _discord;
 		private readonly IServiceProvider _services;
 
+		
 		public ChatService(IServiceProvider services)
 		{
 			_commands = services.GetRequiredService<CommandService>();

@@ -64,6 +64,7 @@ namespace NyuBot
                 .AddSingleton<CommandHandlingService>()
                 .AddSingleton<HttpClient>()
                 .AddSingleton<PictureService>()
+                .AddSingleton<ChatService>()
                 .BuildServiceProvider();
         }
     }
