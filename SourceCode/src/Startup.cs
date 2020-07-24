@@ -6,28 +6,23 @@ using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace NyuBot
-{
-    public class Startup
-    {
+namespace NyuBot {
+    public class Startup {
         public IConfigurationRoot Configuration { get; }
 
-        public Startup(string[] args)
-        {
+        public Startup(string[] args) {
             var builder = new ConfigurationBuilder()        // Create a new instance of the config builder
                 .SetBasePath(AppContext.BaseDirectory)      // Specify the default location for the config file
                 .AddYamlFile("_config.yml");                // Add this (yaml encoded) file to the configuration
-            Configuration = builder.Build();                // Build the configuration
+            this.Configuration = builder.Build();                // Build the configuration
         }
 
-        public static async Task RunAsync(string[] args)
-        {
+        public static async Task RunAsync(string[] args) {
             var startup = new Startup(args);
             await startup.RunAsync();
         }
 
-        public async Task RunAsync()
-        {
+        public async Task RunAsync() {
             var services = new ServiceCollection();             // Create a new instance of a service collection
             ConfigureServices(services);
 
@@ -40,8 +35,7 @@ namespace NyuBot
             await Task.Delay(-1);                               // Keep the program alive
         }
 
-        private void ConfigureServices(IServiceCollection services)
-        {
+        private void ConfigureServices(IServiceCollection services) {
             services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
             {                                       // Add discord to the collection
                 LogLevel = LogSeverity.Verbose,     // Tell the logger to give Verbose amount of info
@@ -58,7 +52,7 @@ namespace NyuBot
             .AddSingleton<Random>()                 // Add random to the collection
             .AddSingleton<AudioService>()           // Add audio service to collection
             .AddSingleton<ChatService>()            // Add chat service to collection
-            .AddSingleton(Configuration);           // Add the configuration to the collection
+            .AddSingleton(this.Configuration);      // Add the configuration to the collection
         }
     }
 }

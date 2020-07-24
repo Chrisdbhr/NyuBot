@@ -6,30 +6,22 @@ using System;
 using System.Reflection;
 using System.Threading.Tasks;
 
-namespace NyuBot
-{
-    public class StartupService
-    {
+namespace NyuBot {
+    public class StartupService {
         private readonly IServiceProvider _provider;
         private readonly DiscordSocketClient _discord;
         private readonly CommandService _commands;
         private readonly IConfigurationRoot _config;
 
         // DiscordSocketClient, CommandService, and IConfigurationRoot are injected automatically from the IServiceProvider
-        public StartupService(
-            IServiceProvider provider,
-            DiscordSocketClient discord,
-            CommandService commands,
-            IConfigurationRoot config)
-        {
+        public StartupService(IServiceProvider provider, DiscordSocketClient discord, CommandService commands, IConfigurationRoot config) {
             _provider = provider;
             _config = config;
             _discord = discord;
             _commands = commands;
         }
 
-        public async Task StartAsync()
-        {
+        public async Task StartAsync() {
             string discordToken = _config["tokens:discord"];     // Get the discord token from the config file
             if (string.IsNullOrWhiteSpace(discordToken))
                 throw new Exception("Please enter your bot's token into the `_configuration.json` file found in the applications root directory.");

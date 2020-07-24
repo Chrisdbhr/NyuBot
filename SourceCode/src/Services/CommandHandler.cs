@@ -4,22 +4,15 @@ using Microsoft.Extensions.Configuration;
 using System.Threading.Tasks;
 using System;
 
-namespace NyuBot
-{
-    public class CommandHandler
-    {
+namespace NyuBot {
+    public class CommandHandler {
         private readonly DiscordSocketClient _discord;
         private readonly CommandService _commands;
         private readonly IConfigurationRoot _config;
         private readonly IServiceProvider _provider;
 
         // DiscordSocketClient, CommandService, IConfigurationRoot, and IServiceProvider are injected automatically from the IServiceProvider
-        public CommandHandler(
-            DiscordSocketClient discord,
-            CommandService commands,
-            IConfigurationRoot config,
-            IServiceProvider provider)
-        {
+        public CommandHandler(DiscordSocketClient discord, CommandService commands, IConfigurationRoot config, IServiceProvider provider) {
             _discord = discord;
             _commands = commands;
             _config = config;
@@ -28,8 +21,7 @@ namespace NyuBot
             _discord.MessageReceived += OnMessageReceivedAsync;
         }
         
-        private async Task OnMessageReceivedAsync(SocketMessage s)
-        {
+        private async Task OnMessageReceivedAsync(SocketMessage s) {
             var msg = s as SocketUserMessage;     // Ensure the message is from a user/bot
             if (msg == null) return;
             if (msg.Author.IsBot) return;

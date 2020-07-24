@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp2.0</TargetFramework>
-    <RootNamespace>Example</RootNamespace>
+    <RootNamespace>NyuBot</RootNamespace>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 

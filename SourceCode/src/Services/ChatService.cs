@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Discord;
@@ -13,12 +14,23 @@ namespace NyuBot {
 		private readonly CommandService _commands;
 
 		public ChatService(DiscordSocketClient discord, CommandService commands) {
-			_commands = commands;
-			_discord = discord;
+			this._commands = commands;
+			this._discord = discord;
 
 			// Hook MessageReceived so we can process each message to see
 			// if it qualifies as a command.
-			_discord.MessageReceived += MessageReceivedAsync;
+			this._discord.MessageReceived += MessageReceivedAsync;
+			this._discord.MessageReceived += this.MessageWithAttachment;
+		}
+
+		private async Task MessageWithAttachment(SocketMessage socketMessage) {
+			foreach (var attachment in socketMessage.Attachments) {
+				using (var client = new WebClient()) {
+					var targetDir = $"FilesBackup/{socketMessage.Channel.Name}/";
+					Directory.CreateDirectory(targetDir);
+					await client.DownloadFileTaskAsync(new Uri(attachment.Url), $"{targetDir}{attachment.Filename}");
+				}
+			}
 		}
 
 		public async Task MessageReceivedAsync(SocketMessage rawMessage) {
@@ -336,9 +348,9 @@ namespace NyuBot {
 			#region Links
 			#region Black Yeast
 			// Firsts
-			if (HasAllWords(messageString, new[] {"black", "yeast"})) {
+			if (isQuestion && HasAllWords(messageString, new[] {"black", "yeast"})) {
 				// user is speaking about Black Yeast.
-				await userMessage.Channel.SendMessageAsync(rawMessage.Author.Mention + " foi pausado por tempo indeterminado. Veja mais detalhes no site: https://chrisdbhr.github.io/blackyeast");
+				await userMessage.Channel.SendMessageAsync(rawMessage.Author.Mention + ", o projeto foi pausado por tempo indeterminado. Veja mais detalhes no site: https://chrisdbhr.github.io/blackyeast");
 				return;
 			}
 			#endregion
@@ -411,17 +423,35 @@ namespace NyuBot {
 			#region Lists
 			// Voice commands list
 			if (messageString == "lista de sons" || messageString == "list" || messageString == "lista" || messageString == ",, help" || messageString == ",,help" || messageString == ",help") {
+	
 				int stringMaxLength = 1999;
-				StringBuilder answerText = new StringBuilder(stringMaxLength);
-				answerText.AppendLine("**Posso tocar todos esses sons, toque eles com o comando ',, nomeDoSom':**");
-				answerText.AppendLine("```");
+				
+				// get all texts
+				await userMessage.Channel.SendMessageAsync($"**Posso tocar esses sons com o comando ';; nomeDoSom':**\n");//answerText.ToString().Substring(0, stringMaxLength - 3) + "...");
+				
+				string boxChar = "```\n";
+				int titleAndBoxCharSize = boxChar.Length * 2;
+				
+				// get all names
+				var allAnswers = new StringBuilder();
 				foreach (string s in Directory.GetFiles("Voices/").Select(Path.GetFileNameWithoutExtension)) {
-					if (s.Length >= stringMaxLength) break;
-					answerText.Append(s);
-					answerText.Append(" | ");
+					allAnswers.Append(s);
+					allAnswers.Append(" | ");
 				}
-				answerText.AppendLine("```");
-				await userMessage.Channel.SendMessageAsync(answerText.ToString().Substring(0, stringMaxLength - 3) + "...");
+
+				// for each group send a message
+				var msg = new StringBuilder();
+				float totalLength = (float)allAnswers.Length / (float)stringMaxLength;
+				for (int i = 0; totalLength - i > 0; i++) {
+					msg.Clear();
+					int length = stringMaxLength - titleAndBoxCharSize;
+					msg.Append(boxChar);
+					msg.Append(allAnswers.ToString(length * i, length));
+					msg.Append(boxChar);
+					
+					await userMessage.Channel.SendMessageAsync(msg.ToString());
+				}
+				
 				return;
 			}
 
