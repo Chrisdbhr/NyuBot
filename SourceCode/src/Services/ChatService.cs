@@ -12,6 +12,7 @@ namespace NyuBot {
 	public class ChatService {
 		private readonly DiscordSocketClient _discord;
 		private readonly CommandService _commands;
+		private readonly Random _rand = new Random();
 
 		public ChatService(DiscordSocketClient discord, CommandService commands) {
 			this._commands = commands;
@@ -33,14 +34,14 @@ namespace NyuBot {
 			}
 		}
 
-		public async Task MessageReceivedAsync(SocketMessage rawMessage) {
-			if (!(rawMessage is SocketUserMessage userMessage)) return;
+		public async Task MessageReceivedAsync(SocketMessage socketMessage) {
+			if (!(socketMessage is SocketUserMessage userMessage)) return;
 			if (userMessage.Source != MessageSource.User) return;
 			if (string.IsNullOrEmpty(userMessage.Content)) return;
 
 			#region Setup message string to read
 			// Content of the message in lower case string.
-			string messageString = rawMessage.Content.ToLower();
+			string messageString = socketMessage.Content.ToLower();
 
 			messageString = RemoveDiacritics(messageString);
 
@@ -60,7 +61,7 @@ namespace NyuBot {
 				userSaidHerName = true;
 				messageString = RemoveBotNameFromMessage(messageString);
 			}
-			else if (rawMessage.MentionedUsers.Contains(_discord.CurrentUser)) {
+			else if (socketMessage.MentionedUsers.Contains(_discord.CurrentUser)) {
 				// remove the mention string from text
 				messageString = messageString.Replace(_discord.CurrentUser.Mention, "");
 				userSaidHerName = true;
@@ -81,36 +82,36 @@ namespace NyuBot {
 			#region Fast Answers
 			// Fast Tests
 			if (messageString == ("ping")) {
-				await rawMessage.Channel.SendMessageAsync("pong");
+				await socketMessage.Channel.SendMessageAsync("pong");
 				return;
 			}
 			if (messageString == ("pong")) {
-				await rawMessage.Channel.SendMessageAsync("ping");
+				await socketMessage.Channel.SendMessageAsync("ping");
 				return;
 			}
 
 			if (messageString == ("marco")) {
-				await rawMessage.Channel.SendMessageAsync("polo");
+				await socketMessage.Channel.SendMessageAsync("polo");
 				return;
 			}
 			if (messageString == ("polo")) {
-				await rawMessage.Channel.SendMessageAsync("marco");
+				await socketMessage.Channel.SendMessageAsync("marco");
 				return;
 			}
 
 			if (messageString == ("dotto")) {
-				await rawMessage.Channel.SendMessageAsync("Dotto. :musical_note:");
+				await socketMessage.Channel.SendMessageAsync("Dotto. :musical_note:");
 				return;
 			}
 
 			if (messageString == "❤" || messageString == ":heart:") {
-				await rawMessage.Channel.SendMessageAsync("❤");
+				await socketMessage.Channel.SendMessageAsync("❤");
 				return;
 			}
 
 			if (messageString == ":broken_heart:" || messageString == "💔") {
-				await rawMessage.Channel.SendMessageAsync("❤");
-				await userMessage.AddReactionAsync(new Emoji(":cry:"));
+				await socketMessage.Channel.SendMessageAsync("❤");
+				await userMessage.AddReactionAsync(new Emoji("😥"));
 				return;
 			}
 
@@ -120,7 +121,7 @@ namespace NyuBot {
 			}
 
 			if (messageString == ("vlw") || messageString == ("valeu") || messageString == ("valew")) {
-				await userMessage.AddReactionAsync(new Emoji(":wink:"));
+				await userMessage.AddReactionAsync(new Emoji("😉"));
 				return;
 			}
 
@@ -157,7 +158,7 @@ namespace NyuBot {
 			}
 
 			if (messageString.Contains("kk")) {
-				if (Randomize().Next(100) < 20) {
+				if (this._rand.Next(100) < 20) {
 					await userMessage.Channel.SendMessageAsync("kkk eae men.");
 					return;
 				}
@@ -171,7 +172,7 @@ namespace NyuBot {
 				messageString.StartsWith(";;") ||
 				messageString.StartsWith("!")
 			) {
-				await userMessage.AddReactionAsync(new Emoji(":x:"));
+				await userMessage.AddReactionAsync(new Emoji("❌"));
 				await Task.Delay(1000 * 2); // 1 second
 				await userMessage.DeleteAsync();
 				return;
@@ -195,7 +196,7 @@ namespace NyuBot {
 					|| messageString == ("quero te come")
 					|| messageString == ("quero te pega")
 				) {
-					await userMessage.AddReactionAsync(new Emoji(":angry:"));
+					await userMessage.AddReactionAsync(new Emoji("😠")); // angry
 					await userMessage.Channel.SendMessageAsync("Não pode.");
 					return;
 				}
@@ -218,14 +219,10 @@ namespace NyuBot {
 					|| messageString == ("obrigado")
 					|| messageString == ("obrigada")
 				) {
-					await userMessage.AddReactionAsync(new Emoji(":heart:"));
+					await userMessage.AddReactionAsync(new Emoji("❤"));
 					return;
 				}
 
-				if (messageString.Contains("manda nude")) {
-					await userMessage.AddReactionAsync(new Emoji(":lennyFace:"));
-					return;
-				}
 			}
 			#endregion
 
@@ -339,8 +336,7 @@ namespace NyuBot {
 			if (messageString.Contains("bot lixo")
 				|| messageString.Contains("suamaeeminha")
 			) {
-				await userMessage.AddReactionAsync(new Emoji(":eyes:"));
-				await userMessage.Channel.SendMessageAsync("Algum problema " + rawMessage.Author.Mention + "?");
+				await userMessage.AddReactionAsync(new Emoji("👀"));
 				return;
 			}
 			#endregion
@@ -350,7 +346,7 @@ namespace NyuBot {
 			// Firsts
 			if (isQuestion && HasAllWords(messageString, new[] {"black", "yeast"})) {
 				// user is speaking about Black Yeast.
-				await userMessage.Channel.SendMessageAsync(rawMessage.Author.Mention + ", o projeto foi pausado por tempo indeterminado. Veja mais detalhes no site: https://chrisdbhr.github.io/blackyeast");
+				await userMessage.Channel.SendMessageAsync(socketMessage.Author.Mention + ", o projeto foi pausado por tempo indeterminado. Veja mais detalhes no site: https://chrisdbhr.github.io/blackyeast");
 				return;
 			}
 			#endregion
@@ -497,13 +493,13 @@ namespace NyuBot {
 					// only write if the unknown text is NOT already on the file
 					if (!fileContent.Contains(messageString)) {
 						File.AppendAllText(unknownCommandsFileName, textToWrite + Environment.NewLine);
-						await userMessage.AddReactionAsync(new Emoji(":grey_question:"));
+						await userMessage.AddReactionAsync(new Emoji("❔"));
 						return;
 					}
 				}
 				else {
 					File.AppendAllText(unknownCommandsFileName, textToWrite + Environment.NewLine);
-					await userMessage.AddReactionAsync(new Emoji(":grey_question:"));
+					await userMessage.AddReactionAsync(new Emoji("❔"));
 					return;
 				}
 
@@ -582,12 +578,6 @@ namespace NyuBot {
 			messageString = messageString.Trim();
 			return messageString;
 		}
-
-		/// <summary>
-		/// Create a new random object and return it.
-		/// </summary>
-		public static Random Randomize() {
-			return new Random();
-		}
+		
 	}
 }
