@@ -35,9 +35,7 @@ namespace NyuBot {
                 var result = await _commands.ExecuteAsync(context, argPos, _provider);     // Execute the command
 
                 if (!result.IsSuccess) { // If not successful, reply with the error.
-                    var messageSent = await context.Channel.SendMessageAsync(result.ToString());
-                    await Task.Delay(1000 * 5);
-                    await messageSent.DeleteAsync();
+                    await context.Channel.SendMessageAsync(result.ToString());
                 }     
             }
         }
