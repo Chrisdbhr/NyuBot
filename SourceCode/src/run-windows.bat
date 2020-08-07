@@ -1,1 +1,2 @@
 dotnet nyubot.dll
+pause

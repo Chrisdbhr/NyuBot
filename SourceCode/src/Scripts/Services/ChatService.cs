@@ -10,20 +10,78 @@ using Discord.WebSocket;
 
 namespace NyuBot {
 	public class ChatService {
-		private readonly DiscordSocketClient _discord;
-		private readonly CommandService _commands;
-		private readonly Random _rand = new Random();
 
+		#region <<---------- Properties ---------->>
+		
 		public ChatService(DiscordSocketClient discord, CommandService commands) {
 			this._commands = commands;
 			this._discord = discord;
 
-			// Hook MessageReceived so we can process each message to see
-			// if it qualifies as a command.
-			this._discord.MessageReceived += MessageReceivedAsync;
+			this._discord.SetActivityAsync(new Game("chrisjogos.com", ActivityType.Playing));
+			
+			this._discord.MessageReceived += this.MessageReceivedAsync;
 			this._discord.MessageReceived += this.MessageWithAttachment;
+			this._discord.MessageDeleted += this.MessageDeletedAsync;
+			this._discord.UserJoined += UserJoined;
+			this._discord.UserLeft += this.UserLeft;
+			this._discord.UserBanned += this.UserBanned;
+		}
+		
+		#endregion <<---------- Properties ---------->>
+		
+		private readonly DiscordSocketClient _discord;
+		private readonly CommandService _commands;
+		private readonly Random _rand = new Random();
+
+		private const ulong CHANNEL_GERAL_ID = 264800866169651203;
+		
+		
+		
+		
+		#region <<---------- Callbacks ---------->>
+
+		private async Task UserJoined(SocketGuildUser socketGuildUser) {
+			var channel = this._discord.GetChannel(CHANNEL_GERAL_ID) as ISocketMessageChannel;
+			if (channel == null) return;
+			var sb = new StringBuilder();
+			sb.Append("Temos uma nova pessoinha no servidor, digam **oi** para ");
+			sb.Append(socketGuildUser.Mention);
+			sb.Append("!");
+			await channel.SendMessageAsync(sb.ToString());
 		}
 
+		private async Task UserBanned(SocketUser socketGuildUser, SocketGuild socketGuild) {
+			await this.UserLeavedGuild(socketGuildUser as SocketGuildUser, " saiu do servidor...");
+		}		
+		private async Task UserLeft(SocketGuildUser socketGuildUser) {
+			await this.UserLeavedGuild(socketGuildUser, " saiu do servidor.");
+		}
+
+		private async Task UserLeavedGuild(SocketGuildUser socketGuildUser, string sufixMsg) {
+			var channel = this._discord.GetChannel(CHANNEL_GERAL_ID) as ISocketMessageChannel;
+			if (channel == null) return;
+			
+			var json = await JsonCache.LoadJsonAsync("Answers/UserLeave");
+			string customAnswer = null;
+			if (json != null) {
+				customAnswer = json.AsArray[this._rand.Next(0, json.Count)].Value;
+			}
+			
+			var sb = new StringBuilder();
+			sb.Append($"{socketGuildUser.Username}#{socketGuildUser.DiscriminatorValue}");
+			sb.Append($"{(socketGuildUser.Nickname != null ? $" ({socketGuildUser.Nickname})" : null)}");
+			sb.Append(sufixMsg);
+			sb.Append($"{customAnswer}");
+			sb.Append($"Temos {socketGuildUser.Guild.MemberCount} membros agora.");
+			await channel.SendMessageAsync(sb.ToString());
+		}
+		
+		private async Task MessageDeletedAsync(Cacheable<IMessage, ulong> cacheable, ISocketMessageChannel socketMessageChannel) {
+			if (!cacheable.HasValue) return;
+			var message = cacheable.Value;
+			Console.WriteLine($"[MessageDeleted] {message.Author.Username} deleted a message in {socketMessageChannel.Name}: '{message.Content}'");
+		}
+		
 		private async Task MessageWithAttachment(SocketMessage socketMessage) {
 			foreach (var attachment in socketMessage.Attachments) {
 				using (var client = new WebClient()) {
@@ -34,7 +92,7 @@ namespace NyuBot {
 			}
 		}
 
-		public async Task MessageReceivedAsync(SocketMessage socketMessage) {
+		private async Task MessageReceivedAsync(SocketMessage socketMessage) {
 			if (!(socketMessage is SocketUserMessage userMessage)) return;
 			if (userMessage.Source != MessageSource.User) return;
 			if (string.IsNullOrEmpty(userMessage.Content)) return;
@@ -158,7 +216,7 @@ namespace NyuBot {
 			}
 
 			if (messageString.Contains("kk")) {
-				if (this._rand.Next(100) < 20) {
+				if (this._rand.Next(100) < 5) {
 					await userMessage.Channel.SendMessageAsync("kkk eae men.");
 					return;
 				}
@@ -511,6 +569,12 @@ namespace NyuBot {
 			// if arrived here, the message has no answer.
 		}
 
+		#endregion <<---------- Callbacks ---------->>
+
+
+
+		#region <<---------- String Threatment ---------->>
+		
 		/// <summary>
 		/// Check if a string contains all defined words.
 		/// </summary>
@@ -578,6 +642,8 @@ namespace NyuBot {
 			messageString = messageString.Trim();
 			return messageString;
 		}
-		
+
+		#endregion <<---------- String Threatment ---------->>
+
 	}
 }

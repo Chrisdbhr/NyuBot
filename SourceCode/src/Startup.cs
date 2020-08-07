@@ -14,7 +14,7 @@ namespace NyuBot {
             var builder = new ConfigurationBuilder()        // Create a new instance of the config builder
                 .SetBasePath(AppContext.BaseDirectory)      // Specify the default location for the config file
                 .AddYamlFile("_config.yml");                // Add this (yaml encoded) file to the configuration
-            this.Configuration = builder.Build();                // Build the configuration
+            this.Configuration = builder.Build();           // Build the configuration
         }
 
         public static async Task RunAsync(string[] args) {
@@ -24,7 +24,7 @@ namespace NyuBot {
 
         public async Task RunAsync() {
             var services = new ServiceCollection();             // Create a new instance of a service collection
-            ConfigureServices(services);
+            this.ConfigureServices(services);
 
             var provider = services.BuildServiceProvider();     // Build the service provider
             provider.GetRequiredService<LoggingService>();      // Start the logging service
