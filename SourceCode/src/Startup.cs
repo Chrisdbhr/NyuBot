@@ -5,6 +5,7 @@ using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NyuBot.HungerGames;
 
 namespace NyuBot {
     public class Startup {
@@ -30,6 +31,7 @@ namespace NyuBot {
             provider.GetRequiredService<LoggingService>();      // Start the logging service
             provider.GetRequiredService<CommandHandler>(); 		// Start the command handler service
             provider.GetRequiredService<ChatService>(); 		// Start the chat service handler
+            provider.GetRequiredService<HungerGameService>();
 
             await provider.GetRequiredService<StartupService>().StartAsync();       // Start the startup service
             await Task.Delay(-1);                               // Keep the program alive
@@ -52,6 +54,7 @@ namespace NyuBot {
             .AddSingleton<Random>()                 // Add random to the collection
             .AddSingleton<AudioService>()           // Add audio service to collection
             .AddSingleton<ChatService>()            // Add chat service to collection
+            .AddSingleton<HungerGameService>()
             .AddSingleton(this.Configuration);      // Add the configuration to the collection
         }
     }
