@@ -1,2 +1,0 @@
-dotnet nyubot.dll
-pause
