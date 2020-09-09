@@ -33,10 +33,13 @@ namespace NyuBot.Modules {
 			await _service.LeaveAudio(Context.Guild);
 		}
     
-		[Command(";", RunMode = RunMode.Async)]
-		public async Task PlayCmd([Remainder] string song)
-		{
-			await _service.SendAudioAsync(Context.Guild, Context.Channel, song);
+		[Command(",", RunMode = RunMode.Async)]
+		public async Task PlayCmd([Remainder] string song) {
+			var voiceState = this.Context.User as IVoiceState;
+			if (voiceState == null) return;
+			await this._service.JoinAudio(this.Context.Guild, voiceState.VoiceChannel);
+			await this._service.SendAudioAsync(this.Context.Guild, this.Context.Channel, song);
+			//await this._service.LeaveAudio(this.Context.Guild);
 		}
 	}
 

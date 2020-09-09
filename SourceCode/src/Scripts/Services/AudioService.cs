@@ -8,11 +8,16 @@ using Discord.Audio;
 
 namespace NyuBot {
 	public class AudioService {
+
+		private const int AUDIO_BITRATE = 16000;
 		private readonly ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
+		
+		
+		
 
 		public async Task JoinAudio(IGuild guild, IVoiceChannel target) {
 			IAudioClient client;
-			if (ConnectedChannels.TryGetValue(guild.Id, out client)) {
+			if (this.ConnectedChannels.TryGetValue(guild.Id, out client)) {
 				return;
 			}
 			if (target.Guild.Id != guild.Id) {
@@ -21,7 +26,7 @@ namespace NyuBot {
 
 			var audioClient = await target.ConnectAsync();
 
-			if (ConnectedChannels.TryAdd(guild.Id, audioClient)) {
+			if (this.ConnectedChannels.TryAdd(guild.Id, audioClient)) {
 				// If you add a method to log happenings from this service,
 				// you can uncomment these commented lines to make use of that.
 				//await Log(LogSeverity.Info, $"Connected to voice on {guild.Name}.");
@@ -43,9 +48,7 @@ namespace NyuBot {
 
 			// Your task: Get a full path to the file if the value of 'path' is only a filename.
 			if (!File.Exists(path)) {
-				var msg = await channel.SendMessageAsync("Esse audio não existe.");
-				await Task.Delay(1000 * 5);
-				await channel.DeleteMessageAsync(msg);
+				await Console.Out.WriteLineAsync($"Can't find file from path '{path}'");
 				return;
 			}
 			
@@ -69,7 +72,7 @@ namespace NyuBot {
 		private Process CreateProcess(string path) {
 			return Process.Start(new ProcessStartInfo {
 															  FileName = "ffmpeg.exe",
-															  Arguments = $"-hide_banner -loglevel panic -i \"{path}\" -ac 2 -f s16le -ar 48000 pipe:1",
+															  Arguments = $"-hide_banner -loglevel panic -i \"{path}\" -filter:a \"volume=0.1\" -ac 2 -f s16le -ar 48000 pipe:1",
 															  UseShellExecute = false,
 															  RedirectStandardOutput = true
 													  });
