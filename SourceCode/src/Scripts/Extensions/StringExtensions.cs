@@ -11,6 +11,14 @@ namespace NyuBot.Extensions {
 			chars[index] = newChar;
 			return new string(chars);
 		}
+
+		public static string CSubstring(this string input, int startIndex, int length) {
+			if (string.IsNullOrEmpty(input)) return null;
+			if (length >= input.Length) {
+				return input;
+			}
+			return input.Substring(startIndex, length);
+		}
 		
 	}
 }

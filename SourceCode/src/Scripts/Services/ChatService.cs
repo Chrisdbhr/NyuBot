@@ -1,39 +1,74 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using RestSharp;
+using SimpleJSON;
 
 namespace NyuBot {
-	public class ChatService {
+	public class ChatService : IDisposable {
 
-		#region <<---------- Properties ---------->>
+		#region <<---------- Initializers ---------->>
 		
 		public ChatService(DiscordSocketClient discord, CommandService commands) {
+			this._disposable?.Dispose();
+			this._disposable = new CompositeDisposable();
+
 			this._commands = commands;
 			this._discord = discord;
-
-			this._discord.SetActivityAsync(new Game("chrisjogos.com", ActivityType.Playing));
 			
 			this._discord.MessageReceived += this.MessageReceivedAsync;
 			this._discord.MessageReceived += this.MessageWithAttachment;
 			this._discord.MessageDeleted += this.MessageDeletedAsync;
+			this._discord.MessageUpdated += this.OnMessageUpdated;
 			this._discord.UserJoined += UserJoined;
 			this._discord.UserLeft += this.UserLeft;
 			this._discord.UserBanned += this.UserBanned;
+			this._discord.UserUpdated += async (oldUser, newUser) => {
+				if (newUser.IsBot) return;
+				Console.WriteLine($"UserUpdated: {newUser.Username}, Status: {newUser.Status}");
+			};
+
+			Observable.Timer(TimeSpan.FromHours(1)).Repeat().Subscribe(async _ => {
+						  await this.SetStatusAsync();
+					  });
+
+
+			// check for bot ip change
+			this._disposable.Add(
+				Observable.Timer(TimeSpan.FromMinutes(10)).Repeat().Subscribe(async _ => {
+					await this.CheckForBotPublicIp();
+				})
+			);
+			
+			
 		}
 		
-		#endregion <<---------- Properties ---------->>
+		#endregion <<---------- Initializers ---------->>
+
+		
+		
+		
+		#region <<---------- Properties ---------->>
 		
 		private readonly DiscordSocketClient _discord;
 		private readonly CommandService _commands;
 		private readonly Random _rand = new Random();
+		private System.Timers.Timer _bumpTimer;
+		private Dictionary<ulong, SocketMessage> _lastsSocketMessageOnChannels = new Dictionary<ulong, SocketMessage>();
 
-		private const ulong CHANNEL_GERAL_ID = 264800866169651203;
+		private CompositeDisposable _disposable;
+		
+		#endregion <<---------- Properties ---------->>
 		
 		
 		
@@ -41,7 +76,7 @@ namespace NyuBot {
 		#region <<---------- Callbacks ---------->>
 
 		private async Task UserJoined(SocketGuildUser socketGuildUser) {
-			var channel = this._discord.GetChannel(CHANNEL_GERAL_ID) as ISocketMessageChannel;
+			var channel = socketGuildUser.Guild.SystemChannel;
 			if (channel == null) return;
 			var sb = new StringBuilder();
 			sb.Append("Temos uma nova pessoinha no servidor, digam **oi** para ");
@@ -52,34 +87,16 @@ namespace NyuBot {
 
 		private async Task UserBanned(SocketUser socketGuildUser, SocketGuild socketGuild) {
 			await this.UserLeavedGuild(socketGuildUser as SocketGuildUser, " saiu do servidor...");
-		}		
+		}	
+		
 		private async Task UserLeft(SocketGuildUser socketGuildUser) {
 			await this.UserLeavedGuild(socketGuildUser, " saiu do servidor.");
 		}
 
-		private async Task UserLeavedGuild(SocketGuildUser socketGuildUser, string sufixMsg) {
-			var channel = this._discord.GetChannel(CHANNEL_GERAL_ID) as ISocketMessageChannel;
-			if (channel == null) return;
-			
-			var json = await JsonCache.LoadJsonAsync("Answers/UserLeave");
-			string customAnswer = null;
-			if (json != null) {
-				customAnswer = json.AsArray[this._rand.Next(0, json.Count)].Value;
-			}
-			
-			var sb = new StringBuilder();
-			sb.Append($"{socketGuildUser.Username}#{socketGuildUser.DiscriminatorValue}");
-			sb.Append($"{(socketGuildUser.Nickname != null ? $" ({socketGuildUser.Nickname})" : null)}");
-			sb.Append(sufixMsg);
-			sb.Append($"{customAnswer}");
-			sb.Append($"Temos {socketGuildUser.Guild.MemberCount} membros agora.");
-			await channel.SendMessageAsync(sb.ToString());
-		}
-		
 		private async Task MessageDeletedAsync(Cacheable<IMessage, ulong> cacheable, ISocketMessageChannel socketMessageChannel) {
 			if (!cacheable.HasValue) return;
 			var message = cacheable.Value;
-			Console.WriteLine($"[MessageDeleted] {message.Author.Username} deleted a message in {socketMessageChannel.Name}: '{message.Content}'");
+			Console.WriteLine($"[MessageDeleted] from {message.Author.Username} in {socketMessageChannel.Name}: '{message.Content}'");
 		}
 		
 		private async Task MessageWithAttachment(SocketMessage socketMessage) {
@@ -94,32 +111,73 @@ namespace NyuBot {
 
 		private async Task MessageReceivedAsync(SocketMessage socketMessage) {
 			if (!(socketMessage is SocketUserMessage userMessage)) return;
-			if (userMessage.Source != MessageSource.User) return;
-			if (string.IsNullOrEmpty(userMessage.Content)) return;
+			switch (userMessage.Source) {
+				case MessageSource.System:
+					break;
+				case MessageSource.User:
+					if (userMessage.Channel is IDMChannel dmChannel) {
+						await this.PrivateMessageReceivedAsync(socketMessage, dmChannel);
+					}
+					else {
+						await this.UserMessageReceivedAsync(userMessage);
+					}
+					break;
+				case MessageSource.Bot:
+					await this.BotMessageReceivedAsync(userMessage);
+					break;
+				case MessageSource.Webhook:
+					break;
+			}
+		}
+		
+		private async Task OnMessageUpdated(Cacheable<IMessage, ulong> cacheable, SocketMessage msg, ISocketMessageChannel channel) {
+			await this.MessageReceivedAsync(msg);
+		}
 
+		private async Task PrivateMessageReceivedAsync(SocketMessage socketMessage, IDMChannel dmChannel) {
+			Console.WriteLine($"Private message received from {socketMessage.Author}: {socketMessage.Content}");
+
+			if (socketMessage.Content.ToLower() == "ip") {
+				var ip = await this.GetBotPublicIp();
+				await dmChannel.SendMessageAsync($"Meu IP:```{ip}```");
+			}
+		}
+
+		#endregion <<---------- Callbacks ---------->>
+
+
+		
+
+		#region <<---------- Message Answer ---------->>
+
+		private async Task UserMessageReceivedAsync(SocketUserMessage userMessage) {
+			if (string.IsNullOrEmpty(userMessage.Content)) return;
+			
+			// Parameters
+			bool userSaidHerName = false;
+			bool isQuestion = false;
+			
 			#region Setup message string to read
 			// Content of the message in lower case string.
-			string messageString = socketMessage.Content.ToLower();
+			string messageString = userMessage.Content.ToLower();
 
 			messageString = RemoveDiacritics(messageString);
 
 			messageString = messageString.Trim();
 
 			// if the message is a question
-			bool isQuestion = false;
 			if (messageString.Contains('?')) {
 				// Get rid of all ?
 				messageString = messageString.Replace("?", "");
 				isQuestion = true;
 			}
-			bool userSaidHerName = false;
 
 			// if user sayd her name
 			if (HasAtLeastOneWord(messageString, new[] {"nyu", "nuy"})) {
 				userSaidHerName = true;
 				messageString = RemoveBotNameFromMessage(messageString);
 			}
-			else if (socketMessage.MentionedUsers.Contains(_discord.CurrentUser)) {
+			else if (userMessage.MentionedUsers.Contains(_discord.CurrentUser)) {
 				// remove the mention string from text
 				messageString = messageString.Replace(_discord.CurrentUser.Mention, "");
 				userSaidHerName = true;
@@ -137,38 +195,80 @@ namespace NyuBot {
 			}
 			#endregion
 
+			#region <<---------- Consider Last message ---------->>
+			
+			if (messageString.Length > 1 && messageString.All(c => c == 'k')) {
+				try {
+					if (this._lastsSocketMessageOnChannels.TryGetValue(userMessage.Channel.Id, out var lastMessage)) {
+						if (lastMessage is SocketUserMessage lastUserMessage) {
+							await userMessage.DeleteAsync();
+							await lastUserMessage.AddReactionAsync(new Emoji("🤣"));
+							return;
+						}
+					}
+					
+				} catch (Exception e) {
+					Console.WriteLine($"Exception trying to get last message:\n{e}");
+				} 
+			}
+			
+			#endregion <<---------- Consider Last message ---------->>
+
+			
+			// save this as last message
+			this._lastsSocketMessageOnChannels[userMessage.Channel.Id] = userMessage;
+
+			
+			#region <<---------- User Specific ---------->>
+
+			// babies
+			try {
+				var jsonArray = (await JsonCache.LoadValueAsync("UsersBabies", "data")).AsArray;
+				for (int i = 0; i < jsonArray.Count; i++) {
+					var userId = jsonArray[i].Value;
+					if (string.IsNullOrEmpty(userId)) continue;
+					if (userMessage.Author.Id != Convert.ToUInt64(userId)) continue;
+					await userMessage.AddReactionAsync(new Emoji("😭"));
+					break;
+				}
+			} catch (Exception e) {
+				Console.WriteLine($"Exception trying to process babies answer: {e}");
+			}
+			
+			#endregion <<---------- User Specific ---------->>
+
 			#region Fast Answers
-			// Fast Tests
+			
 			if (messageString == ("ping")) {
-				await socketMessage.Channel.SendMessageAsync("pong");
+				await userMessage.Channel.SendMessageAsync("pong");
 				return;
 			}
 			if (messageString == ("pong")) {
-				await socketMessage.Channel.SendMessageAsync("ping");
+				await userMessage.Channel.SendMessageAsync("ping");
 				return;
 			}
 
 			if (messageString == ("marco")) {
-				await socketMessage.Channel.SendMessageAsync("polo");
+				await userMessage.Channel.SendMessageAsync("polo");
 				return;
 			}
 			if (messageString == ("polo")) {
-				await socketMessage.Channel.SendMessageAsync("marco");
+				await userMessage.Channel.SendMessageAsync("marco");
 				return;
 			}
 
 			if (messageString == ("dotto")) {
-				await socketMessage.Channel.SendMessageAsync("Dotto. :musical_note:");
+				await userMessage.Channel.SendMessageAsync("Dotto. :musical_note:");
 				return;
 			}
 
 			if (messageString == "❤" || messageString == ":heart:") {
-				await socketMessage.Channel.SendMessageAsync("❤");
+				await userMessage.Channel.SendMessageAsync("❤");
 				return;
 			}
 
 			if (messageString == ":broken_heart:" || messageString == "💔") {
-				await socketMessage.Channel.SendMessageAsync("❤");
+				await userMessage.Channel.SendMessageAsync("❤");
 				await userMessage.AddReactionAsync(new Emoji("😥"));
 				return;
 			}
@@ -215,20 +315,11 @@ namespace NyuBot {
 				return;
 			}
 
-			if (messageString.Contains("kk")) {
-				if (this._rand.Next(100) < 5) {
-					await userMessage.Channel.SendMessageAsync("kkk eae men.");
-					return;
-				}
-			}
 			#endregion
 
-			#region Erase BotsCommands
+			#region Erase BotCommands
 			if (
-				messageString.StartsWith(".") ||
-				messageString.StartsWith(",") ||
-				messageString.StartsWith(";;") ||
-				messageString.StartsWith("!")
+				messageString.StartsWith(",")
 			) {
 				await userMessage.AddReactionAsync(new Emoji("❌"));
 				await Task.Delay(1000 * 2); // 1 second
@@ -375,6 +466,7 @@ namespace NyuBot {
 			#endregion
 
 			#region General
+			
 			if (messageString == "alguem ai") {
 				await userMessage.Channel.SendMessageAsync("Eu. Mas sou um bot então não vou conseguir ter respostas para todas as suas perguntas.");
 				return;
@@ -386,6 +478,21 @@ namespace NyuBot {
 					return;
 				}
 			}
+
+			if (messageString == "!d bump") {
+				this._bumpTimer?.Close();
+				this._bumpTimer = new System.Timers.Timer(120 * 60 * 1000);
+				var channel = userMessage.Channel;
+				var user = userMessage.Author;
+				await channel.SendMessageAsync($"{user.Mention} vou lembrar daqui a 2 horas pra dar bump de novo.");
+				this._bumpTimer.Elapsed += async (sender, args) => {
+					await channel.SendMessageAsync($"{user.Mention}\nJa da pra dar bump no server de novo! Mande essa mensagem aqui:\n```!d bump```");
+				};
+				this._bumpTimer.AutoReset = false;
+				this._bumpTimer.Start();
+				return;
+			}
+			
 			#endregion
 
 			#region Insults
@@ -404,7 +511,7 @@ namespace NyuBot {
 			// Firsts
 			if (isQuestion && HasAllWords(messageString, new[] {"black", "yeast"})) {
 				// user is speaking about Black Yeast.
-				await userMessage.Channel.SendMessageAsync(socketMessage.Author.Mention + ", o projeto foi pausado por tempo indeterminado. Veja mais detalhes no site: https://chrisdbhr.github.io/blackyeast");
+				await userMessage.Channel.SendMessageAsync(userMessage.Author.Mention + ", o projeto foi pausado por tempo indeterminado. Veja mais detalhes no site: https://chrisdbhr.github.io/blackyeast");
 				return;
 			}
 			#endregion
@@ -569,9 +676,84 @@ namespace NyuBot {
 			// if arrived here, the message has no answer.
 		}
 
-		#endregion <<---------- Callbacks ---------->>
+		private async Task BotMessageReceivedAsync(SocketUserMessage userMessage) {
+			
+		}
+		
+		#endregion <<---------- Message Answer ---------->>
+		
+		
+		
+
+		#region <<---------- User ---------->>
+		
+		private async Task SetStatusAsync() {
+			var jsonArray = (await JsonCache.LoadValueAsync("ChrisGames", "data")).AsArray;
+			string gameName = null;
+			if (jsonArray != null) {
+				gameName = jsonArray[this._rand.Next(0, jsonArray.Count)].Value;
+			}
+			if (this._discord == null) return;
+			await this._discord.SetGameAsync(gameName ?? "chrisjogos.com");
+		}
+		
+		private async Task UserLeavedGuild(SocketGuildUser socketGuildUser, string sufixMsg) {
+			var channel = socketGuildUser.Guild.SystemChannel;
+			if (channel == null) return;
+			
+			var jsonArray = (await JsonCache.LoadValueAsync("Answers/UserLeave", "data")).AsArray;
+			string customAnswer = null;
+			if (jsonArray != null) {
+				customAnswer = jsonArray[this._rand.Next(0, jsonArray.Count)].Value;
+			}
+			
+			var sb = new StringBuilder();
+			sb.Append($"{socketGuildUser.Username}#{socketGuildUser.DiscriminatorValue}");
+			sb.Append($"{(socketGuildUser.Nickname != null ? $" ({socketGuildUser.Nickname})" : null)}");
+			sb.AppendLine($"{sufixMsg}");
+			sb.AppendLine($"**{customAnswer}**");
+			sb.AppendLine($"Temos {socketGuildUser.Guild.MemberCount} membros agora.");
+			await channel.SendMessageAsync(sb.ToString());
+		}
+		
+		#endregion <<---------- User ---------->>
 
 
+		
+		
+		#region <<---------- Bot IP ---------->>
+
+		private async Task CheckForBotPublicIp() {
+			var ip = await this.GetBotPublicIp();
+			
+			var json = await JsonCache.LoadJsonAsync("Ip") ?? new JSONObject {["lastIp"] = ""};
+			
+			if (json.Value == ip) return;
+
+			// ip changed
+			
+			json["lastIp"].Value = ip;
+			await JsonCache.SaveJsonAsync("Ip", json);
+		}
+
+		private async Task<string> GetBotPublicIp() {
+			var client = new RestClient("http://ipinfo.io/ip");
+			var request = new RestRequest(Method.GET);
+			var cancellationTokenSource = new CancellationTokenSource();
+			var timeline = await client.ExecuteAsync(request, cancellationTokenSource.Token);
+
+			if (!string.IsNullOrEmpty(timeline.ErrorMessage)) {
+				Console.WriteLine($"Error trying to get bot IP: {timeline.ErrorMessage}");
+				return null;
+			}
+			if (string.IsNullOrEmpty(timeline.Content)) return null;
+			return timeline.Content.Trim();
+		}
+		
+		#endregion <<---------- Bot IP ---------->>
+		
+		
+		
 
 		#region <<---------- String Threatment ---------->>
 		
@@ -642,8 +824,22 @@ namespace NyuBot {
 			messageString = messageString.Trim();
 			return messageString;
 		}
-
+		
 		#endregion <<---------- String Threatment ---------->>
 
+
+		
+
+		#region <<---------- Disposable ---------->>
+
+		public void Dispose() {
+			this._discord?.Dispose();
+			((IDisposable) this._commands)?.Dispose();
+			this._bumpTimer?.Dispose();
+			this._disposable?.Dispose();
+		}
+
+		#endregion <<---------- Disposable ---------->>
+		
 	}
 }
