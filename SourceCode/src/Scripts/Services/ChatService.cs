@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using NyuBot.Extensions;
 using RestSharp;
 using SimpleJSON;
 
@@ -38,9 +39,10 @@ namespace NyuBot {
 				Console.WriteLine($"UserUpdated: {newUser.Username}, Status: {newUser.Status}");
 			};
 
+			this.SetStatusAsync().CAwait();
 			Observable.Timer(TimeSpan.FromHours(1)).Repeat().Subscribe(async _ => {
-						  await this.SetStatusAsync();
-					  });
+				await this.SetStatusAsync();
+			});
 
 
 			// check for bot ip change
