@@ -68,7 +68,6 @@ namespace NyuBot.HungerGames {
 			if (characters.Count <= 1) return;
 
 			characters = characters.Take(numberOfPlayers).ToList();
-			var playersCount = characters.Count;
 			
 			// new match
 			var embed = new EmbedBuilder {

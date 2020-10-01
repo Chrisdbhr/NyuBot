@@ -134,8 +134,9 @@ namespace NyuBot.HungerGames {
 					killer.Kills += 1;
 					died.IsDead = true;
 					
-					embed.WithThumbnailUrl(killer.User.GetAvatarUrlSafe());
-					embed.WithFooter($"{died.User.GetNameSafe()} morreu", died.User.GetAvatarUrlSafe());
+					embed.WithThumbnailUrl(died.User.GetAvatarUrlSafe());
+					string killCount = killer.Kills > 1 ? killer.Kills.ToString() : "";
+					embed.WithFooter($"{killer.User.GetNameSafe()} matou {killCount}", killer.User.GetAvatarUrlSafe());
 						
 					embed.Title = $"{killer.User.GetNameBoldSafe()} matou {died.User.GetNameBoldSafe()}.";
 

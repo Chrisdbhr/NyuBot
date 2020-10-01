@@ -18,6 +18,7 @@ namespace NyuBot.Modules {
 		[Summary("Start a new Hunger Game simulation")]
 		public async Task NewHungerGameSimulation() {
 			if (this.Context?.Channel == null) return;
+			await this.StopHungerGameSimulation();
 			var matchJsonNode = await JsonCache.LoadJsonAsync($"Games/HungerGames/{this.Context.Channel}");
 			if (matchJsonNode != null) return; // already playing
 
