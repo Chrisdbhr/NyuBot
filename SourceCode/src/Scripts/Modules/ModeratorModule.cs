@@ -3,12 +3,36 @@ using Discord.Commands;
 using Discord.WebSocket;
 using System.Threading.Tasks;
 
-namespace NyuBot.Modules
-{
+namespace NyuBot.Modules {
+    
     [Name("Moderator")]
     [RequireContext(ContextType.Guild)]
     public class ModeratorModule : ModuleBase<SocketCommandContext>
     {
+        [Command("say"), Alias("s")]
+        [Summary("Make the bot say something")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public Task Say([Remainder]string text) => this.ReplyAsync(text);
+        
+        [Group("set"), Name("Set commands")]
+        [RequireContext(ContextType.Guild)]
+        public class Set : ModuleBase
+        {
+            [Command("nick"), Priority(1)]
+            [Summary("Change your nickname to the specified text")]
+            [RequireUserPermission(GuildPermission.ChangeNickname)]
+            public Task Nick([Remainder]string name) => this.Nick(this.Context.User as SocketGuildUser, name);
+
+            [Command("nick"), Priority(0)]
+            [Summary("Change another user's nickname to the specified text")]
+            [RequireUserPermission(GuildPermission.ManageNicknames)]
+            public async Task Nick(SocketGuildUser user, [Remainder]string name)
+            {
+                await user.ModifyAsync(x => x.Nickname = name);
+                await this.ReplyAsync($"{user.Mention} I changed your name to **{name}**");
+            }
+        }
+        
         [Command("kick")]
         [Summary("Kick the specified user.")]
         [RequireUserPermission(GuildPermission.KickMembers)]

@@ -45,10 +45,10 @@ namespace NyuBot {
 				Console.WriteLine($"UserUpdated: {newUser.Username}, Status: {newUser.Status}");
 			};
 
-			this.SetStatusAsync().CAwait();
 			
 			// first triggers
 			Observable.Timer(TimeSpan.FromSeconds(5)).Subscribe(async _ => {
+				await this.SetStatusAsync();
 				await this.DayNightImgAndName();
 				await this.HourlyMessage();
 			}).AddTo(this._disposable);
@@ -103,11 +103,7 @@ namespace NyuBot {
 		private async Task UserJoined(SocketGuildUser socketGuildUser) {
 			var channel = socketGuildUser.Guild.SystemChannel;
 			if (channel == null) return;
-			var sb = new StringBuilder();
-			sb.Append("Temos uma nova pessoinha no servidor, digam **oi** para ");
-			sb.Append(socketGuildUser.Mention);
-			sb.Append("!");
-			await channel.SendMessageAsync(sb.ToString());
+			await channel.SendMessageAsync($"Temos uma nova pessoinha no servidor, digam **oi** para {socketGuildUser.Mention}!");
 		}
 
 		private async Task UserBanned(SocketUser socketGuildUser, SocketGuild socketGuild) {
@@ -163,7 +159,7 @@ namespace NyuBot {
 		private async Task PrivateMessageReceivedAsync(SocketMessage socketMessage, IDMChannel dmChannel) {
 			Console.WriteLine($"Private message received from {socketMessage.Author}: {socketMessage.Content}");
 
-			if (socketMessage.Content.ToLower() == "ip") {
+			if (socketMessage.Content.ToLower().Contains("ip")) {
 				var ip = await this.GetBotPublicIp();
 				await dmChannel.SendMessageAsync($"Meu IP:```{ip}```");
 			}
@@ -306,7 +302,7 @@ namespace NyuBot {
 				|| messageString == "oi galera"
 				|| messageString == "dae galera"
 			) {
-				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] {"Oi.", "Olá.", "Hello.", "Coé.", "Oin."}));
+				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] {"Oi.", "Olá.", "Hello.", "Coé.", "Oin.", "Aoba."}));
 				return;
 			}
 
@@ -346,7 +342,6 @@ namespace NyuBot {
 					|| messageString == ("quero te pega")
 				) {
 					await userMessage.AddReactionAsync(new Emoji("😠")); // angry
-					await userMessage.Channel.SendMessageAsync("Não pode.");
 					return;
 				}
 
@@ -399,7 +394,7 @@ namespace NyuBot {
 			#region General
 			
 			if (messageString == "alguem ai") {
-				await userMessage.Channel.SendMessageAsync("Eu. Mas sou um bot então não vou conseguir ter respostas para todas as suas perguntas.");
+				await userMessage.Channel.SendMessageAsync("Eu");
 				return;
 			}
 
@@ -410,6 +405,7 @@ namespace NyuBot {
 				}
 			}
 
+			// Disboard bump
 			if (messageString == "!d bump") {
 				this._bumpTimer?.Close();
 				this._bumpTimer = new System.Timers.Timer(120 * 60 * 1000);
@@ -442,7 +438,7 @@ namespace NyuBot {
 			// Firsts
 			if (isQuestion && HasAllWords(messageString, new[] {"black", "yeast"})) {
 				// user is speaking about Black Yeast.
-				await userMessage.Channel.SendMessageAsync(userMessage.Author.Mention + ", o projeto foi pausado por tempo indeterminado. Veja mais detalhes no site: https://chrisdbhr.github.io/blackyeast");
+				await userMessage.Channel.SendMessageAsync(userMessage.Author.Mention + " vc disse Black Yeast? Veja mais infomações dele aqui: https://chrisdbhr.github.io/blackyeast");
 				return;
 			}
 			#endregion
@@ -452,64 +448,12 @@ namespace NyuBot {
 				await userMessage.Channel.SendMessageAsync("Se quer saber qual o canal do Chris o link é esse: https://www.youtube.com/christopher7");
 				return;
 			}
-
-			if (messageString.Contains("chris") && HasAtLeastOneWord(messageString, new[] {"face", "facebook"})) {
-				await userMessage.Channel.SendMessageAsync("O link para o Facebook do Chris é esse: https://www.facebook.com/chrisdbhr");
-				return;
-			}
-
+			
 			if (messageString.Contains("twitch") && HasAtLeastOneWord(messageString, new[] {"seu", "canal"})) {
 				await userMessage.Channel.SendMessageAsync("O link para o Twitch do Chris é esse: https://www.twitch.tv/chrisdbhr");
 				return;
 			}
 			#endregion
-			#endregion
-
-			#region Public Commands
-			if (messageString.EndsWith("comandos desconhecidos")) {
-				if (userSaidHerName) {
-					string readFile = File.ReadAllText("unknownCommands.txt");
-					if (readFile != null && readFile.Length > 0) {
-						string trimmedMsg = "Quando alguém fala algo que eu não conheço eu guardo em uma lista para o Chris ver depois. Essa é a lista de comandos que podem vir a receber respostas futuramente: " + Environment.NewLine + "`" + readFile + "`";
-						await userMessage.Channel.SendMessageAsync(trimmedMsg.Substring(0, 1999));
-						return;
-					}
-				}
-			}
-
-			// Best animes list
-			if (userSaidHerName) {
-				if (messageString == ("add a lista de melhores animes")) {
-					messageString = messageString.Replace("add a lista de melhores animes", "");
-					string filePath = "Lists/bestAnimes.txt";
-					messageString.Trim();
-					string file = File.ReadAllText(filePath);
-
-					// first, compare if the text to save its not to big
-					if (messageString.Length > 48) {
-						// ignore the message because it can be spam
-						return;
-					}
-
-					// check if the txt its not biggen then 10mb
-					FileInfo fileInfo = new FileInfo(file);
-					if (fileInfo.Length > 10 * 1000000) {
-						await userMessage.Channel.SendMessageAsync("<@203373041063821313> eu tentei adicionar o texto que o " + userMessage.Author.Mention + " digitou mas o arquivo de lista de melhores animes alcançou o tamanho limite. :sob:");
-						return;
-					}
-
-					// see if the anime is already on the list
-					if (file.Contains(messageString)) {
-						await userMessage.Channel.SendMessageAsync("O anime " + @"`{messageString}` ja esta na lista de melhores animes.");
-						return;
-					}
-					else {
-						File.AppendAllText(filePath, Environment.NewLine + messageString);
-						await userMessage.Channel.SendMessageAsync("Adicionado " + @"`{messageString}` a lista de melhores animes. :wink:");
-						return;
-					}
-				}
-			}
 			#endregion
 
 			//!!! THIS PART OF THE CODE BELOW MUST BE AS THE LAST BECAUSE:
