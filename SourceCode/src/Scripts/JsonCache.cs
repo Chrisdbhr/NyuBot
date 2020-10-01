@@ -4,8 +4,10 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using NyuBot.Extensions;
+
 using SimpleJSON;
+
+using NyuBot.Extensions;
 
 namespace NyuBot {
 	public static class JsonCache {
@@ -31,11 +33,8 @@ namespace NyuBot {
 			Directory.CreateDirectory(Path.GetDirectoryName(filePathWithExtension));
 			
 			// write
-			await using (StreamWriter writer = File.CreateText(filePathWithExtension)) {
-				var jsonString = jsonNode.ToString();
-				if (jsonString.Length <= 2) return;
-				jsonString = jsonString.ReplaceAt(0,'{').ReplaceAt(jsonString.Length - 1, '}');
-				await writer.WriteAsync(jsonString);
+			using (StreamWriter writer = File.CreateText(filePathWithExtension)) {
+				await writer.WriteAsync(jsonNode.ToString(4));
 			}
 		}
 
