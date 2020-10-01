@@ -47,6 +47,35 @@ namespace NyuBot {
 
 		
 
+		#region <<---------- Static ---------->>
+
+		public async Task PlaySoundByNameOnAllMostPopulatedAudioChannels(string fileName) {
+			try {
+				foreach (var sGuild in this._discord.Guilds) {
+					SocketVoiceChannel vcWithMorePeople = null;
+					foreach (var vc in sGuild.VoiceChannels) {
+						if (vcWithMorePeople == null) {
+							vcWithMorePeople = vc;
+							continue;
+						}
+						if (vc.Users.Count > vcWithMorePeople.Users.Count) {
+							vcWithMorePeople = vc;
+						}
+					}
+					if (vcWithMorePeople == null || vcWithMorePeople.Users.Count <= 0) continue;
+					await this.JoinAudio(sGuild, vcWithMorePeople);
+					await this.SendAudioAsync(sGuild, fileName);
+				}
+			} catch (Exception e) {
+				Console.WriteLine(e);
+			}
+		}
+		
+		#endregion <<---------- Static ---------->>
+
+		
+		
+
 		#region <<---------- Public ---------->>
 
 		public async Task JoinAudio(IGuild guild, IVoiceChannel target) {
@@ -76,7 +105,7 @@ namespace NyuBot {
 			}
 		}
 
-		public async Task SendAudioAsync(IGuild guild, IMessageChannel channel, string path) {
+		public async Task SendAudioAsync(IGuild guild, string path) {
 			
 			path = "Voices\\" + path + ".mp3";
 
@@ -113,7 +142,7 @@ namespace NyuBot {
 		private Process CreateProcess(string path) {
 			return Process.Start(new ProcessStartInfo {
 				FileName = "ffmpeg.exe",
-				Arguments = $"-hide_banner -loglevel panic -i \"{path}\" -filter:a \"volume=0.1\" -ac 2 -f s16le -ar 48000 pipe:1",
+				Arguments = $"-hide_banner -loglevel panic -i \"{path}\" -filter:a \"volume=0.4\" -ac 2 -f s16le -ar 48000 pipe:1",
 				UseShellExecute = false,
 				RedirectStandardOutput = true
 			});

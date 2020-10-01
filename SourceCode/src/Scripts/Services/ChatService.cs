@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
+using Discord.Rest;
 using Discord.WebSocket;
 using HtmlAgilityPack;
 using RestSharp;
@@ -22,7 +23,7 @@ namespace NyuBot {
 
 		#region <<---------- Initializers ---------->>
 		
-		public ChatService(DiscordSocketClient discord, CommandService commands) {
+		public ChatService(DiscordSocketClient discord, CommandService commands, AudioService audioService) {
 			this._disposable?.Dispose();
 			this._disposable = new CompositeDisposable();
 
@@ -77,7 +78,9 @@ namespace NyuBot {
 		
 		private readonly DiscordSocketClient _discord;
 		private readonly CommandService _commands;
+		private readonly AudioService _audioService;
 		private readonly Random _rand = new Random();
+		
 		private System.Timers.Timer _bumpTimer;
 		private Dictionary<ulong, SocketMessage> _lastsSocketMessageOnChannels = new Dictionary<ulong, SocketMessage>();
 		private bool _isDay = false;
@@ -708,6 +711,7 @@ namespace NyuBot {
 					case 0:
 						title = "Meia noite, vão dormi";
 						msg = $"Horário oficial do óleo de macaco";
+						this._audioService.PlaySoundByNameOnAllMostPopulatedAudioChannels("meianoite").CAwait();
 						break;
 					case 12:
 						title = "Meio dia";
@@ -719,12 +723,8 @@ namespace NyuBot {
 				if(string.IsNullOrEmpty(msg)) msg = await this.GetRandomMotivationPhrase() ?? "Hora agora";
 
 				var embed = new EmbedBuilder {
-					Fields = new List<EmbedFieldBuilder> {
-						new EmbedFieldBuilder{
-							Name = title, 
-							Value = msg
-						}
-					}
+					Title = title,
+					Description = msg
 				};
 				
 				await channel.SendMessageAsync(string.Empty, false, embed.Build());
