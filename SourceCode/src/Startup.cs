@@ -30,6 +30,7 @@ namespace NyuBot {
             var provider = services.BuildServiceProvider();     // Build the service provider
             provider.GetRequiredService<LoggingService>();      // Start the logging service
             provider.GetRequiredService<CommandHandler>(); 		// Start the command handler service
+            provider.GetRequiredService<AudioService>(); 		// Start the chat service handler
             provider.GetRequiredService<ChatService>(); 		// Start the chat service handler
             provider.GetRequiredService<HungerGameService>();
             provider.GetRequiredService<VoiceService>();

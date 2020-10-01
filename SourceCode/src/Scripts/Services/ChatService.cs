@@ -27,15 +27,17 @@ namespace NyuBot {
 			this._disposable?.Dispose();
 			this._disposable = new CompositeDisposable();
 
-			this._commands = commands;
+			// dependecies injected
 			this._discord = discord;
+			this._commands = commands;
+			this._audioService = audioService;
 			
 			this._discord.MessageReceived += this.MessageReceivedAsync;
 			this._discord.MessageReceived += this.MessageWithAttachment;
 			this._discord.MessageDeleted += this.MessageDeletedAsync;
 			this._discord.MessageUpdated += this.OnMessageUpdated;
 			
-			this._discord.UserJoined += UserJoined;
+			this._discord.UserJoined += this.UserJoined;
 			this._discord.UserLeft += this.UserLeft;
 			this._discord.UserBanned += this.UserBanned;
 			this._discord.UserUpdated += async (oldUser, newUser) => {
@@ -44,7 +46,14 @@ namespace NyuBot {
 			};
 
 			this.SetStatusAsync().CAwait();
+			
+			// first triggers
+			Observable.Timer(TimeSpan.FromSeconds(5)).Subscribe(async _ => {
+				await this.DayNightImgAndName();
+				await this.HourlyMessage();
+			}).AddTo(this._disposable);
 
+			
 			// status
 			Observable.Timer(TimeSpan.FromHours(1)).Repeat().Subscribe(async _ => {
 				await this.SetStatusAsync();
@@ -56,9 +65,6 @@ namespace NyuBot {
 			}).AddTo(this._disposable);
 
 			// change image at midnight
-			Observable.Timer(TimeSpan.FromSeconds(5)).Subscribe(async _ => {
-				await this.DayNightImgAndName(); // change at beggining
-			}).AddTo(this._disposable);
 			Observable.Timer(TimeSpan.FromMinutes(15)).Repeat().Subscribe(async _ => {
 				await this.DayNightImgAndName();
 			}).AddTo(this._disposable);
@@ -502,97 +508,48 @@ namespace NyuBot {
 			}
 			#endregion
 
-			#region Lists
-			// Voice commands list
-			if (messageString == "lista de sons" || messageString == "list" || messageString == "lista" || messageString == ",, help" || messageString == ",,help" || messageString == ",help") {
-	
-				int stringMaxLength = 1999;
-				
-				// get all texts
-				await userMessage.Channel.SendMessageAsync($"**Posso tocar esses sons com o comando ';; nomeDoSom':**\n");//answerText.ToString().Substring(0, stringMaxLength - 3) + "...");
-				
-				string boxChar = "```\n";
-				int titleAndBoxCharSize = boxChar.Length * 2;
-				
-				// get all names
-				var allAnswers = new StringBuilder();
-				foreach (string s in Directory.GetFiles("Voices/").Select(Path.GetFileNameWithoutExtension)) {
-					allAnswers.Append(s);
-					allAnswers.Append(" | ");
-				}
-
-				// for each group send a message
-				var msg = new StringBuilder();
-				float totalLength = (float)allAnswers.Length / (float)stringMaxLength;
-				for (int i = 0; totalLength - i > 0; i++) {
-					msg.Clear();
-					int length = stringMaxLength - titleAndBoxCharSize;
-					msg.Append(boxChar);
-					msg.Append(allAnswers.ToString(length * i, length));
-					msg.Append(boxChar);
-					
-					await userMessage.Channel.SendMessageAsync(msg.ToString());
-				}
-				
-				return;
-			}
-
-			// Best Animes List
-			if (userSaidHerName) {
-				if (messageString == "best animes" || messageString == "melhores animes" || messageString == "lista de melhores animes" || messageString == "lista de animes bons" || messageString == "lista dos melhores animes") {
-					string filePath = "Lists/bestAnimes.txt";
-					string file = File.ReadAllText(filePath);
-					if (!string.IsNullOrEmpty(file)) {
-						// return the list
-						await userMessage.Channel.SendMessageAsync("Lista de melhores animes:" + $"{file}");
-					}
-					else {
-						// Create file if not exists
-						File.WriteAllText(filePath, "");
-					}
-					return;
-				}
-			}
-
 			//!!! THIS PART OF THE CODE BELOW MUST BE AS THE LAST BECAUSE:
+			// TODO bot log unknown commands on file 
 			// see if user sayd only bot name on message with some other things and she has no answer yet
-			if (userSaidHerName) {
-				string unknownCommandsFileName = "Lists/unknownCommands.txt";
-				string textToWrite = messageString + $"	({userMessage.Author.Username})";
-
-				// first, compare if the text to save its not to big
-				if (textToWrite.Length > 48) {
-					// ignore the message because it can be spam
-					return;
-				}
-
-				// check if the txt its not biggen then 10mb
-				FileInfo fileInfo = new FileInfo(unknownCommandsFileName);
-				if (fileInfo.Length > 10 * 1000000) {
-					await userMessage.Channel.SendMessageAsync("<@203373041063821313> eu tentei adicionar o texto que o " + userMessage.Author.Username + " digitou mas o arquivo de lista de comandos alcançou o tamanho limite. :sob:");
-					return;
-				}
-
-				// get text in string
-				string fileContent = File.ReadAllText(unknownCommandsFileName);
-				if (fileContent != null) {
-					// only write if the unknown text is NOT already on the file
-					if (!fileContent.Contains(messageString)) {
-						File.AppendAllText(unknownCommandsFileName, textToWrite + Environment.NewLine);
-						await userMessage.AddReactionAsync(new Emoji("❔"));
-						return;
-					}
-				}
-				else {
-					File.AppendAllText(unknownCommandsFileName, textToWrite + Environment.NewLine);
-					await userMessage.AddReactionAsync(new Emoji("❔"));
-					return;
-				}
-
-				// return "Ainda não tenho resposta para isso:\n" + "`" + messageString + "`";
-				return;
-			}
-			#endregion
+			// if (userSaidHerName) {
+			// 	string unknownCommandsFileName = "Lists/unknownCommands.txt";
+			// 	string textToWrite = messageString + $"	({userMessage.Author.Username})";
+			//
+			// 	// first, compare if the text to save its not to big
+			// 	if (textToWrite.Length > 48) {
+			// 		// ignore the message because it can be spam
+			// 		return;
+			// 	}
+			//
+			// 	// check if the txt its not biggen then 10mb
+			// 	await using (var ss = new StreamWriter(unknownCommandsFileName)) {
+			// 		
+			// 	}
+			// 	var fileInfo = new FileInfo(unknownCommandsFileName);
+			// 	if (fileInfo.Length > 10 * 1000000) {
+			// 		await userMessage.Channel.SendMessageAsync("<@203373041063821313> eu tentei adicionar o texto que o " + userMessage.Author.Username + " digitou mas o arquivo de lista de comandos alcançou o tamanho limite. :sob:");
+			// 		return;
+			// 	}
+			//
+			// 	// get text in string
+			// 	string fileContent = File.ReadAllText(unknownCommandsFileName);
+			// 	if (fileContent != null) {
+			// 		// only write if the unknown text is NOT already on the file
+			// 		if (!fileContent.Contains(messageString)) {
+			// 			File.AppendAllText(unknownCommandsFileName, textToWrite + Environment.NewLine);
+			// 			await userMessage.AddReactionAsync(new Emoji("❔"));
+			// 			return;
+			// 		}
+			// 	}
+			// 	else {
+			// 		File.AppendAllText(unknownCommandsFileName, textToWrite + Environment.NewLine);
+			// 		await userMessage.AddReactionAsync(new Emoji("❔"));
+			// 		return;
+			// 	}
+			//
+			// 	// return "Ainda não tenho resposta para isso:\n" + "`" + messageString + "`";
+			// 	return;
+			// }
 
 			// if arrived here, the message has no answer.
 		}
@@ -734,6 +691,7 @@ namespace NyuBot {
 		#endregion <<---------- Bot IP ---------->>
 
 
+		
 
 		#region <<---------- Pensador API ---------->>
 
@@ -762,6 +720,7 @@ namespace NyuBot {
 		}
 
 		#endregion <<---------- Pensador API ---------->>
+		
 		
 		
 

@@ -21,7 +21,7 @@ namespace NyuBot {
 			this._disposable?.Dispose();
 			this._disposable = new CompositeDisposable();
 
-			discord = this._discord;
+			this._discord = discord;
 			
 			////Todo implement
 			// Observable.Timer(TimeSpan.FromSeconds(15)).Repeat().Subscribe(async _ => {
