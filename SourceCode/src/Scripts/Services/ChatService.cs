@@ -89,7 +89,7 @@ namespace NyuBot {
 		
 		private System.Timers.Timer _bumpTimer;
 		private Dictionary<ulong, SocketMessage> _lastsSocketMessageOnChannels = new Dictionary<ulong, SocketMessage>();
-		private bool _isDay = false;
+		private int _previousHour = -1;
 
 		private CompositeDisposable _disposable;
 		
@@ -118,6 +118,28 @@ namespace NyuBot {
 			await this.UserLeavedGuild(socketGuildUser, " saiu do servidor.");
 		}
 
+		private async Task MessageReceivedAsync(SocketMessage socketMessage) {
+			if (!(socketMessage is SocketUserMessage userMessage)) return;
+			switch (userMessage.Source) {
+				case MessageSource.System:
+					break;
+				case MessageSource.User:
+					if (userMessage.Channel is IDMChannel dmChannel) {
+						await this.PrivateMessageReceivedAsync(socketMessage, dmChannel);
+					}
+					else {
+						await this.UserMessageReceivedAsync(userMessage);
+						await this.CheckIfUserWasSleeping(userMessage);
+					}
+					break;
+				case MessageSource.Bot:
+					await this.BotMessageReceivedAsync(userMessage);
+					break;
+				case MessageSource.Webhook:
+					break;
+			}
+		}
+
 		private async Task MessageDeletedAsync(Cacheable<IMessage, ulong> cacheable, ISocketMessageChannel socketMessageChannel) {
 			if (!cacheable.HasValue) return;
 			var message = cacheable.Value;
@@ -131,27 +153,6 @@ namespace NyuBot {
 					Directory.CreateDirectory(targetDir);
 					await client.DownloadFileTaskAsync(new Uri(attachment.Url), $"{targetDir}{attachment.Filename}");
 				}
-			}
-		}
-
-		private async Task MessageReceivedAsync(SocketMessage socketMessage) {
-			if (!(socketMessage is SocketUserMessage userMessage)) return;
-			switch (userMessage.Source) {
-				case MessageSource.System:
-					break;
-				case MessageSource.User:
-					if (userMessage.Channel is IDMChannel dmChannel) {
-						await this.PrivateMessageReceivedAsync(socketMessage, dmChannel);
-					}
-					else {
-						await this.UserMessageReceivedAsync(userMessage);
-					}
-					break;
-				case MessageSource.Bot:
-					await this.BotMessageReceivedAsync(userMessage);
-					break;
-				case MessageSource.Webhook:
-					break;
 			}
 		}
 		
@@ -186,8 +187,9 @@ namespace NyuBot {
 			// Parameters
 			bool userSaidHerName = false;
 			bool isQuestion = false;
-			
-			#region Setup message string to read
+
+			#region <<---------- Setup message string to read ---------->>
+
 			// Content of the message in lower case string.
 			string messageString = userMessage.Content.ToLower();
 
@@ -197,19 +199,18 @@ namespace NyuBot {
 
 			// if the message is a question
 			if (messageString.Contains('?')) {
-				// Get rid of all ?
-				messageString = messageString.Replace("?", "");
+				messageString = messageString.Replace("?", string.Empty);
 				isQuestion = true;
 			}
 
-			// if user sayd her name
+			// if user said her name
 			if (HasAtLeastOneWord(messageString, new[] {"nyu", "nuy"})) {
 				userSaidHerName = true;
 				messageString = RemoveBotNameFromMessage(messageString);
 			}
-			else if (userMessage.MentionedUsers.Contains(_discord.CurrentUser)) {
+			else if (userMessage.MentionedUsers.Contains(this._discord.CurrentUser)) {
 				// remove the mention string from text
-				messageString = messageString.Replace(_discord.CurrentUser.Mention, "");
+				messageString = messageString.Replace(this._discord.CurrentUser.Mention, "");
 				userSaidHerName = true;
 			}
 
@@ -218,13 +219,11 @@ namespace NyuBot {
 
 			// See if message is empty now
 			if (messageString.Length <= 0) {
-				if (userSaidHerName) {
-					await userMessage.AddReactionAsync(new Emoji(":question:"));
-				}
 				return;
 			}
-			#endregion
-
+			
+			#endregion <<---------- Setup message string to read ---------->>
+	
 			
 			#region <<---------- User Specific ---------->>
 
@@ -245,6 +244,11 @@ namespace NyuBot {
 			#endregion <<---------- User Specific ---------->>
 
 			#region Fast Answers
+
+			if (messageString == "a mimir") {
+				await this.SetUserIsSleeping(userMessage);
+				return;
+			}
 			
 			if (messageString == ("ping")) {
 				await userMessage.Channel.SendMessageAsync("pong");
@@ -631,14 +635,14 @@ namespace NyuBot {
 		private async Task DayNightImgAndName() {
 			if (this._discord.CurrentUser == null) return;
 
+			if (DateTime.Now.Hour == this._previousHour) return;
 			bool day = DateTime.Now.Hour > 5;
-			if (day == this._isDay) return;
-			this._isDay = day;
+			this._previousHour = DateTime.Now.Hour;
 
 			// change img
 			var imgName = day ? "day" : "night";
 			try {
-				await using (var fileStream = new FileStream(Directory.GetCurrentDirectory() + $"/Assets/Images/Profile/{imgName}.png", FileMode.Open)) {
+				await using (var fileStream = new FileStream(Directory.GetCurrentDirectory() + $"/Assets/Images/Profile/{imgName}.jpg", FileMode.Open)) {
 					var image = new Image(fileStream);
 					await this._discord.CurrentUser.ModifyAsync(p => p.Avatar = image);
 				}
@@ -720,7 +724,56 @@ namespace NyuBot {
 		}
 
 		#endregion <<---------- Pensador API ---------->>
+
+
+
+		#region <<---------- A mimir ---------->>
+
+		private const string JSONPATH_USERSLEEPINFO = "SleepManagment/";
 		
+		private async Task SetUserIsSleeping(SocketUserMessage msg) {
+			var path = $"{JSONPATH_USERSLEEPINFO}{msg.Author.Id}";
+			if (!(msg.Author is SocketGuildUser author)) return;
+
+			var jsonNode = (await JsonCache.LoadJsonAsync(path)) ?? new JSONObject();
+			jsonNode["sleep-start-time"] = DateTime.Now.Ticks.ToString();
+			
+			jsonNode["isSleeping"] = true;
+			
+			await JsonCache.SaveJsonAsync(path, jsonNode);
+			await msg.AddReactionAsync(new Emoji("💤"));
+		}
+
+		private async Task CheckIfUserWasSleeping(SocketUserMessage msg) {
+			if (msg.Content.ToLower() == "a mimir") return;
+			var path = $"{JSONPATH_USERSLEEPINFO}{msg.Author.Id}";
+			if (!(msg.Author is SocketGuildUser author)) return;
+
+			var jsonNode = (await JsonCache.LoadJsonAsync(path)) ?? new JSONObject();
+			if (!jsonNode["isSleeping"].AsBool) return;
+			var value = jsonNode["sleep-start-time"].Value;
+			var sleepTime = new DateTime(Convert.ToInt64(value));
+			var totalSleepTime = DateTime.Now - sleepTime;
+
+			
+			var embed = new EmbedBuilder {
+				Title = $"Parece que {author.GetNameSafe()} acordou",
+				Description = $"{author.Mention} dormiu um total de: {totalSleepTime.ToString(@"hh\:mm")}"
+			};
+			embed.Color = Color.LightOrange;
+			
+			embed.AddField(new EmbedFieldBuilder {
+				Name = "Horas que foi a mimir",
+				Value = sleepTime.ToString(@"hh\:mm tt")
+			});
+
+			jsonNode["isSleeping"] = false;
+			
+			await JsonCache.SaveJsonAsync(path, jsonNode);
+			await msg.Channel.SendMessageAsync(string.Empty, false, embed.Build());
+		}
+		
+		#endregion <<---------- A mimir ---------->>
 		
 		
 
