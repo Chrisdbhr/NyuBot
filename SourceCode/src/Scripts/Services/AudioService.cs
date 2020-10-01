@@ -2,18 +2,52 @@ using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Reactive.Disposables;
+using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Audio;
+using Discord.WebSocket;
+using NyuBot.Extensions;
 
 namespace NyuBot {
 	public class AudioService {
 
+		#region <<---------- Initializers ---------->>
+
+		public AudioService(DiscordSocketClient discord) {
+			this._disposable?.Dispose();
+			this._disposable = new CompositeDisposable();
+
+			discord = this._discord;
+			
+			////Todo implement
+			// Observable.Timer(TimeSpan.FromSeconds(15)).Repeat().Subscribe(async _ => {
+			// 	await this.CheckForRenaming();
+			// }).AddTo(this._disposable);
+		}
+		
+		#endregion <<---------- Initializers ---------->>
+		
+		
+		
+		
+		#region <<---------- Properties ---------->>
+		
 		private const int AUDIO_BITRATE = 16000;
 		private readonly ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
+
+		private readonly DiscordSocketClient _discord;
+		private CompositeDisposable _disposable;
+
+		#endregion <<---------- Properties ---------->>
+
+
 		
-		
-		
+
+		#region <<---------- Public ---------->>
 
 		public async Task JoinAudio(IGuild guild, IVoiceChannel target) {
 			IAudioClient client;
@@ -69,13 +103,52 @@ namespace NyuBot {
 			}
 		}
 
+		#endregion <<---------- Public ---------->>
+
+		
+		
+		
+		#region <<---------- Private ---------->>
+
 		private Process CreateProcess(string path) {
 			return Process.Start(new ProcessStartInfo {
-															  FileName = "ffmpeg.exe",
-															  Arguments = $"-hide_banner -loglevel panic -i \"{path}\" -filter:a \"volume=0.1\" -ac 2 -f s16le -ar 48000 pipe:1",
-															  UseShellExecute = false,
-															  RedirectStandardOutput = true
-													  });
+				FileName = "ffmpeg.exe",
+				Arguments = $"-hide_banner -loglevel panic -i \"{path}\" -filter:a \"volume=0.1\" -ac 2 -f s16le -ar 48000 pipe:1",
+				UseShellExecute = false,
+				RedirectStandardOutput = true
+			});
 		}
+
+		#endregion <<---------- Private ---------->>
+
+		
+
+
+		#region <<---------- Voice Renaming ---------->>
+
+		private async Task CheckForRenaming() {
+			var jsonArray = await JsonCache.LoadJsonAsync("Voice/DynamicVoiceChannels");
+			if (jsonArray == null) return;
+
+			for (int i = 0; i < jsonArray.Count; i++) {
+				if (!(this._discord.GetChannel(Convert.ToUInt64(jsonArray[i].Value)) is IVoiceChannel voiceChannel)) continue;
+				await this.DecideName(voiceChannel);
+			}
+		}
+
+		private async Task DecideName(IVoiceChannel voiceChannel) {
+			
+			// get all users in voice channel async
+			// var usersAsyncEnum = voiceChannel.GetUsersAsync();
+			
+			// //process users
+			// foreach (var user in usersList) {
+			// 	Console.WriteLine("Implement DecideName().process users");
+			// }
+			
+		}
+		
+		#endregion <<---------- Voice Renaming ---------->>
+		
 	}
 }

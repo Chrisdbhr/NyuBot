@@ -11,9 +11,11 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
-using NyuBot.Extensions;
+using HtmlAgilityPack;
 using RestSharp;
 using SimpleJSON;
+
+using NyuBot.Extensions;
 
 namespace NyuBot {
 	public class ChatService : IDisposable {
@@ -31,6 +33,7 @@ namespace NyuBot {
 			this._discord.MessageReceived += this.MessageWithAttachment;
 			this._discord.MessageDeleted += this.MessageDeletedAsync;
 			this._discord.MessageUpdated += this.OnMessageUpdated;
+			
 			this._discord.UserJoined += UserJoined;
 			this._discord.UserLeft += this.UserLeft;
 			this._discord.UserBanned += this.UserBanned;
@@ -40,19 +43,29 @@ namespace NyuBot {
 			};
 
 			this.SetStatusAsync().CAwait();
+
+			// status
 			Observable.Timer(TimeSpan.FromHours(1)).Repeat().Subscribe(async _ => {
 				await this.SetStatusAsync();
-			});
-
+			}).AddTo(this._disposable);
 
 			// check for bot ip change
-			this._disposable.Add(
-				Observable.Timer(TimeSpan.FromMinutes(10)).Repeat().Subscribe(async _ => {
-					await this.CheckForBotPublicIp();
-				})
-			);
+			Observable.Timer(TimeSpan.FromMinutes(10)).Repeat().Subscribe(async _ => {
+				await this.CheckForBotPublicIp();
+			}).AddTo(this._disposable);
+
+			// change image at midnight
+			Observable.Timer(TimeSpan.FromSeconds(5)).Subscribe(async _ => {
+				await this.DayNightImgAndName(); // change at beggining
+			}).AddTo(this._disposable);
+			Observable.Timer(TimeSpan.FromMinutes(15)).Repeat().Subscribe(async _ => {
+				await this.DayNightImgAndName();
+			}).AddTo(this._disposable);
 			
-			
+			// hora em hora
+			Observable.Timer(TimeSpan.FromMinutes(1)).Repeat().Subscribe(async _ => {
+				await this.HourlyMessage();
+			}).AddTo(this._disposable);
 		}
 		
 		#endregion <<---------- Initializers ---------->>
@@ -67,6 +80,7 @@ namespace NyuBot {
 		private readonly Random _rand = new Random();
 		private System.Timers.Timer _bumpTimer;
 		private Dictionary<ulong, SocketMessage> _lastsSocketMessageOnChannels = new Dictionary<ulong, SocketMessage>();
+		private bool _isDay = false;
 
 		private CompositeDisposable _disposable;
 		
@@ -153,6 +167,11 @@ namespace NyuBot {
 		#region <<---------- Message Answer ---------->>
 
 		private async Task UserMessageReceivedAsync(SocketUserMessage userMessage) {
+			
+			// save this as last message
+			this._lastsSocketMessageOnChannels[userMessage.Channel.Id] = userMessage;
+
+
 			if (string.IsNullOrEmpty(userMessage.Content)) return;
 			
 			// Parameters
@@ -196,29 +215,6 @@ namespace NyuBot {
 				return;
 			}
 			#endregion
-
-			#region <<---------- Consider Last message ---------->>
-			
-			if (messageString.Length > 1 && messageString.All(c => c == 'k')) {
-				try {
-					if (this._lastsSocketMessageOnChannels.TryGetValue(userMessage.Channel.Id, out var lastMessage)) {
-						if (lastMessage is SocketUserMessage lastUserMessage) {
-							await userMessage.DeleteAsync();
-							await lastUserMessage.AddReactionAsync(new Emoji("🤣"));
-							return;
-						}
-					}
-					
-				} catch (Exception e) {
-					Console.WriteLine($"Exception trying to get last message:\n{e}");
-				} 
-			}
-			
-			#endregion <<---------- Consider Last message ---------->>
-
-			
-			// save this as last message
-			this._lastsSocketMessageOnChannels[userMessage.Channel.Id] = userMessage;
 
 			
 			#region <<---------- User Specific ---------->>
@@ -319,17 +315,6 @@ namespace NyuBot {
 
 			#endregion
 
-			#region Erase BotCommands
-			if (
-				messageString.StartsWith(",")
-			) {
-				await userMessage.AddReactionAsync(new Emoji("❌"));
-				await Task.Delay(1000 * 2); // 1 second
-				await userMessage.DeleteAsync();
-				return;
-			}
-			#endregion
-
 			#region Nyu
 			// check if user said nyu / nuy
 			if (userSaidHerName) {
@@ -384,7 +369,7 @@ namespace NyuBot {
 				|| messageString.Contains("boku no piku")
 				|| messageString.Contains("boku no piku")
 			) {
-				await userMessage.Channel.SendMessageAsync(userMessage.Author.Mention + " Gay.");
+				await userMessage.AddReactionAsync(new Emoji("😶"));
 				return;
 			}
 			#endregion
@@ -395,76 +380,7 @@ namespace NyuBot {
 				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] {"Agora eu saqueeeeei!", "Agora tudo faz sentido!", "Eu estava cego agora estou enchergaaaando!", "Agora tudo vai mudar!", "Agora eu vou ficar de olhos abertos!"}));
 				return;
 			}
-
-			#region Teu cu na minha mao
-			// all possible answers
-			if (messageString.Contains("mo vacilao") || messageString.Contains("mo vacilaum")) {
-				await userMessage.Channel.SendMessageAsync("''Hmmmm vacilão... Teu cu na minha mao.''");
-				return;
-			}
-			if (messageString.Contains("teu cu na minha mao")) {
-				await userMessage.Channel.SendMessageAsync("''Teu cu e o aeroporto meu pau e o avião.''");
-				return;
-			}
-			if (messageString.Contains("teu cu e o aeroporto meu pau e o aviao")) {
-				await userMessage.Channel.SendMessageAsync("''Teu cu é a garagem meu pau é o caminhão.''");
-				return;
-			}
-			if (messageString.Contains("teu cu e a garagem meu pau e o caminhao")) {
-				await userMessage.Channel.SendMessageAsync("''Teu cu é a Carminha meu pau é o Tufão (ãnh?).''");
-				return;
-			}
-			if (HasAllWords(messageString, new[] {"teu cu", "meu pau", "tufao"})) {
-				await userMessage.Channel.SendMessageAsync("''Teu cu é o mar meu pau é o tubarão.''");
-				return;
-			}
-			if (messageString.Contains("teu cu e o mar meu pau e o tubarao")) {
-				await userMessage.Channel.SendMessageAsync("''Teu cu é o morro meu pau é o Complexo do Alemão.''");
-				return;
-			}
-			if (messageString.Contains("teu cu e o morro meu pau e o complexo do alemao")) {
-				await userMessage.Channel.SendMessageAsync("''Caraaalho, sem nexo.''");
-				return;
-			}
-			if (messageString.Contains("sem nexo")) {
-				await userMessage.Channel.SendMessageAsync("''Teu cu é o cabelo meu pau é o reflexo.''");
-				return;
-			}
-			if (HasAllWords(messageString, new[] {"teu cu e o cabelo", "meu pau e reflexo"})) {
-				await userMessage.Channel.SendMessageAsync("''Teu cu é o Moon Walker meu pau é o Michael Jackson.''");
-				return;
-			}
-			if (HasAllWords(messageString, new[] {"teu cu e o", "meu pau e o"})
-				&& (HasAtLeastOneWord(messageString, new[] {"michael", "mickael", "maicow", " maycow", " maico", "jackson", "jackso", "jakso", "jakson", "jequiso", "jequison"})
-					|| HasAtLeastOneWord(messageString, new[] {" moon ", " mun ", "walker", "walk", " uauquer"}))) {
-				await userMessage.Channel.SendMessageAsync("''Ãhhnnnn Michael Jackson já morreu...''");
-				return;
-			}
-			if (messageString.Contains("ja morreu") && HasAtLeastOneWord(messageString, new[] {"michael", "maicow", " maycow", " maico", "jackson", "jackso", "jakso", "jakson", "jequiso", "jequison"})) {
-				await userMessage.Channel.SendMessageAsync("''Teu cu é a Julieta meu pau é o Romeu.''");
-				return;
-			}
-			if (messageString.Contains("tu cu e a julieta") && messageString.Contains("meu pau e o romeu")) {
-				await userMessage.Channel.SendMessageAsync("''Caraaalho, nada a vê.''");
-				return;
-			}
-			if (messageString.StartsWith("nada a ve") || messageString == ("nada ve")) {
-				await userMessage.Channel.SendMessageAsync("''Teu cu pisca meu pau acende.''");
-				return;
-			}
-			if (messageString.Contains("teu cu pisca") && messageString.Contains("meu pau acende")) {
-				await userMessage.Channel.SendMessageAsync("''Teu cu é a Globo meu pau é o SBT.''");
-				return;
-			}
-			if (messageString.Contains("teu cu e a globo") && messageString.Contains("meu pau e o sbt")) {
-				await userMessage.Channel.SendMessageAsync("''Aahhh vai toma no cu.''");
-				return;
-			}
-			if (messageString.Contains("toma no cu")) {
-				await userMessage.Channel.SendMessageAsync("''Teu cu é o Pokemon meu pau é o Pikachu.''");
-				return;
-			}
-			#endregion
+			
 			#endregion
 
 			#region General
@@ -751,9 +667,101 @@ namespace NyuBot {
 			if (string.IsNullOrEmpty(timeline.Content)) return null;
 			return timeline.Content.Trim();
 		}
-		
+
+		private async Task DayNightImgAndName() {
+			if (this._discord.CurrentUser == null) return;
+
+			bool day = DateTime.Now.Hour > 5;
+			if (day == this._isDay) return;
+			this._isDay = day;
+
+			// change img
+			var imgName = day ? "day" : "night";
+			try {
+				await using (var fileStream = new FileStream(Directory.GetCurrentDirectory() + $"/Assets/Images/Profile/{imgName}.png", FileMode.Open)) {
+					var image = new Image(fileStream);
+					await this._discord.CurrentUser.ModifyAsync(p => p.Avatar = image);
+				}
+			} catch (Exception e) {
+				Console.WriteLine(e);
+			}
+
+			var newName = day ? "Nyu" : "Lucy";
+			foreach (var guild in this._discord.Guilds) {
+				if (guild.CurrentUser.Nickname == newName) continue;
+				await guild.CurrentUser.ModifyAsync(p => p.Nickname = newName);
+			}
+
+		}
+
+		private async Task HourlyMessage() {
+			var time = DateTime.Now;
+			if (time.Minute != 0) return;
+			
+			foreach (var guild in this._discord.Guilds) {
+				var channel = guild.SystemChannel;
+				if (channel == null) continue;
+
+				string title = $"{time:h tt}";
+				string msg = null;
+				switch (time.Hour) {
+					case 0:
+						title = "Meia noite, vão dormi";
+						msg = $"Horário oficial do óleo de macaco";
+						break;
+					case 12:
+						title = "Meio dia";
+						msg = $"Hora de comer *nhon nhon nhon*";
+						break;
+				}
+
+				// motivation phrase
+				if(string.IsNullOrEmpty(msg)) msg = await this.GetRandomMotivationPhrase() ?? "Hora agora";
+
+				var embed = new EmbedBuilder {
+					Fields = new List<EmbedFieldBuilder> {
+						new EmbedFieldBuilder{
+							Name = title, 
+							Value = msg
+						}
+					}
+				};
+				
+				await channel.SendMessageAsync(string.Empty, false, embed.Build());
+			}
+		}
+
 		#endregion <<---------- Bot IP ---------->>
-		
+
+
+
+		#region <<---------- Pensador API ---------->>
+
+		private async Task<string> GetRandomMotivationPhrase() {
+			var client = new RestClient("https://www.pensador.com/frases");
+			var request = new RestRequest(Method.GET);
+			var cancellationTokenSource = new CancellationTokenSource();
+			var timeline = await client.ExecuteAsync(request, cancellationTokenSource.Token);
+
+			if (!string.IsNullOrEmpty(timeline.ErrorMessage) || string.IsNullOrEmpty(timeline.Content)) {
+				Console.WriteLine($"Error trying Random Motivation Phrase: {timeline.ErrorMessage}");
+				return null;
+			}
+
+			var html = new HtmlDocument();
+			html.LoadHtml(timeline.Content);
+			var nodeCollection = html.DocumentNode.SelectNodes("//p");
+
+			var listOfPhrases = new List<string>();
+			foreach (var node in nodeCollection) {
+				if (string.IsNullOrEmpty(node.Id)) continue;
+				listOfPhrases.Add(node.InnerText);
+			}
+			
+			return listOfPhrases.RandomElement();
+		}
+
+		#endregion <<---------- Pensador API ---------->>
 		
 		
 
