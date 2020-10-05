@@ -1,7 +1,9 @@
-﻿using Discord;
+﻿using System.Threading;
+using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using System.Threading.Tasks;
+using RestSharp;
 
 namespace NyuBot.Modules {
     
@@ -62,5 +64,22 @@ namespace NyuBot.Modules {
 
             await this.ReplyAsync("", false, embed.Build());
         }
+
+        [Command("randomimg")]
+        public async Task GetRandomImg() {
+            
+            var client = new RestClient("https://picsum.photos/96");
+            var request = new RestRequest(Method.GET);
+            var timeline = await client.ExecuteAsync(request, CancellationToken.None);
+            
+            var embed = new EmbedBuilder {
+                Title = "Random image",
+                Description = "from picsum.photos",
+                ThumbnailUrl = timeline.ResponseUri.OriginalString
+            };
+
+            await this.ReplyAsync("", false, embed.Build());
+        }
+        
     }
 }
