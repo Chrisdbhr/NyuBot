@@ -85,7 +85,7 @@ namespace NyuBot.HungerGames {
 					break;
 				case TurnAction.lookForFood:
 					if (randValue > 70) {
-						this.HungryLevel = MAX_HUNGRY_LEVEL;
+						this.HungryLevel = 0;
 						embed.Title = $"{charName} achou comida!";
 					}
 					else {
