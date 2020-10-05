@@ -45,6 +45,14 @@ namespace NyuBot {
 				Console.WriteLine($"UserUpdated: {newUser.Username}, Status: {newUser.Status}");
 			};
 
+			this._discord.UserVoiceStateUpdated += async (user, oldState, newState) => {
+				if(!(user is SocketGuildUser socketGuildUser)) return;
+				if (oldState.VoiceChannel == null && newState.VoiceChannel != null) {
+					// joined voice channel
+					await this.InformUserWakeUp(socketGuildUser);
+				} 
+			}; 
+
 			
 			// first triggers
 			Observable.Timer(TimeSpan.FromSeconds(5)).Subscribe(async _ => {
@@ -125,7 +133,14 @@ namespace NyuBot {
 					}
 					else {
 						await this.UserMessageReceivedAsync(userMessage);
-						await this.CheckIfUserWasSleeping(userMessage);
+						
+						// check user sleeping
+						if (userMessage.Content.ToLower() == "a mimir") {
+							await this.SetUserIsSleeping(userMessage);
+						}
+						else {
+							await this.InformUserWakeUp(userMessage.Author as SocketGuildUser);
+						}
 					}
 					break;
 				case MessageSource.Bot:
@@ -565,8 +580,7 @@ namespace NyuBot {
 		private async Task<string> GetBotPublicIp() {
 			var client = new RestClient("http://ipinfo.io/ip");
 			var request = new RestRequest(Method.GET);
-			var cancellationTokenSource = new CancellationTokenSource();
-			var timeline = await client.ExecuteAsync(request, cancellationTokenSource.Token);
+			var timeline = await client.ExecuteAsync(request, CancellationToken.None);
 
 			if (!string.IsNullOrEmpty(timeline.ErrorMessage)) {
 				Console.WriteLine($"Error trying to get bot IP: {timeline.ErrorMessage}");
@@ -625,14 +639,31 @@ namespace NyuBot {
 				}
 
 				// motivation phrase
-				if(string.IsNullOrEmpty(msg)) msg = await this.GetRandomMotivationPhrase() ?? "Hora agora";
+				if (string.IsNullOrEmpty(msg)) {
+					msg = await this.GetRandomMotivationPhrase();
+				}
+				msg = string.IsNullOrEmpty(msg) ? "Hora agora" : $"*\"{msg}\"*";
 
 				var embed = new EmbedBuilder {
 					Title = title,
 					Description = msg
 				};
 				
-				await channel.SendMessageAsync(string.Empty, false, embed.Build());
+				var msgSend = await channel.SendMessageAsync(string.Empty, false, embed.Build());
+
+				// get random photo
+				try {
+					var client = new RestClient("https://picsum.photos/96");
+					var request = new RestRequest(Method.GET);
+					var timeline = await client.ExecuteAsync(request, CancellationToken.None);
+					if (!string.IsNullOrEmpty(timeline.ResponseUri.OriginalString)) {
+						embed.ThumbnailUrl = timeline.ResponseUri.OriginalString;
+						await msgSend.ModifyAsync(p => p.Embed = embed.Build());
+					}
+				} catch (Exception e) {
+					Console.WriteLine(e);
+				}
+				
 			}
 		}
 
@@ -646,8 +677,7 @@ namespace NyuBot {
 		private async Task<string> GetRandomMotivationPhrase() {
 			var client = new RestClient("https://www.pensador.com/frases");
 			var request = new RestRequest(Method.GET);
-			var cancellationTokenSource = new CancellationTokenSource();
-			var timeline = await client.ExecuteAsync(request, cancellationTokenSource.Token);
+			var timeline = await client.ExecuteAsync(request, CancellationToken.None);
 
 			if (!string.IsNullOrEmpty(timeline.ErrorMessage) || string.IsNullOrEmpty(timeline.Content)) {
 				Console.WriteLine($"Error trying Random Motivation Phrase: {timeline.ErrorMessage}");
@@ -688,21 +718,21 @@ namespace NyuBot {
 			await msg.AddReactionAsync(new Emoji("💤"));
 		}
 
-		private async Task CheckIfUserWasSleeping(SocketUserMessage msg) {
-			if (msg.Content.ToLower() == "a mimir") return;
-			var path = $"{JSONPATH_USERSLEEPINFO}{msg.Author.Id}";
-			if (!(msg.Author is SocketGuildUser author)) return;
-
+		private async Task InformUserWakeUp(SocketGuildUser user) {
+			if (user == null) return;
+			var path = $"{JSONPATH_USERSLEEPINFO}{user.Id}";
+			
 			var jsonNode = (await JsonCache.LoadJsonAsync(path)) ?? new JSONObject();
+			
 			if (!jsonNode["isSleeping"].AsBool) return;
+			
 			var value = jsonNode["sleep-start-time"].Value;
 			var sleepTime = new DateTime(Convert.ToInt64(value));
 			var totalSleepTime = DateTime.Now - sleepTime;
-
 			
 			var embed = new EmbedBuilder {
-				Title = $"Parece que {author.GetNameSafe()} acordou",
-				Description = $"{author.Mention} dormiu um total de: {totalSleepTime.ToString(@"hh\:mm")}"
+				Title = $"Parece que {user.GetNameSafe()} acordou",
+				Description = $"{user.Mention} dormiu um total de: {totalSleepTime.ToString(@"hh\:mm")}"
 			};
 			embed.Color = Color.LightOrange;
 			
@@ -714,7 +744,7 @@ namespace NyuBot {
 			jsonNode["isSleeping"] = false;
 			
 			await JsonCache.SaveJsonAsync(path, jsonNode);
-			await msg.Channel.SendMessageAsync(string.Empty, false, embed.Build());
+			await user.Guild.SystemChannel.SendMessageAsync(string.Empty, false, embed.Build());
 		}
 		
 		#endregion <<---------- A mimir ---------->>
