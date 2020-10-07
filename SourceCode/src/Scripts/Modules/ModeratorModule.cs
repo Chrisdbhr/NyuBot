@@ -1,16 +1,20 @@
-﻿using System.Threading;
+﻿using System;
+using System.Linq;
+using System.Threading;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using System.Threading.Tasks;
+using NyuBot.Extensions;
 using RestSharp;
+using RestSharp.Extensions;
 
 namespace NyuBot.Modules {
     
     [Name("Moderator")]
     [RequireContext(ContextType.Guild)]
-    public class ModeratorModule : ModuleBase<SocketCommandContext>
-    {
+    public class ModeratorModule : ModuleBase<SocketCommandContext> {
+
         [Command("say"), Alias("s")]
         [Summary("Make the bot say something")]
         [RequireUserPermission(GuildPermission.Administrator)]
@@ -45,24 +49,21 @@ namespace NyuBot.Modules {
             await user.KickAsync();
         }
 
-        [Command("rvc"), Alias("renamevoicechannel")]
+        [Command("rc"), Alias("renamevoicechannel")]
         [Summary("Renames a voice channel that user is in.")]
         [RequireUserPermission(GuildPermission.ManageChannels)]
         [RequireBotPermission(GuildPermission.ManageChannels)]
-        public async Task RenameVoiceChannel(string newVcName) {
-            if (string.IsNullOrEmpty(newVcName)) return;
+        public async Task RenameVoiceChannel(params string[] newNameArray) {
+            if (newNameArray.Length <= 0) return;
             if (!(this.Context.User is SocketGuildUser user)) return;
             var vc = user.VoiceChannel;
             if (vc == null) return;
-            var oldName = vc.Name;
-            await vc.ModifyAsync(p => p.Name = newVcName);
-            
-            var embed = new EmbedBuilder {
-                Title = "Canal de voz renomeado",
-                Description = $"**{oldName}** renomeado para **{newVcName}**"
-            };
-
-            await this.ReplyAsync("", false, embed.Build());
+            var newName = string.Join(' ', newNameArray);
+            newName = newName.FirstCharToUpper();
+            await vc.ModifyAsync(p => p.Name = newName);
+            await this.Context.Message.AddReactionAsync(new Emoji("✔"));
+            await Task.Delay(TimeSpan.FromSeconds(5));
+            await this.Context.Message.DeleteAsync();
         }
 
         [Command("randomimg")]

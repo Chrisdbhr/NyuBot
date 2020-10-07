@@ -58,6 +58,7 @@ namespace NyuBot {
             .AddSingleton<VoiceService>()           // Add audio service to collection
             .AddSingleton<ChatService>()            // Add chat service to collection
             .AddSingleton<HungerGameService>()
+            .AddSingleton<WeatherService>()
             .AddSingleton(this.Configuration);      // Add the configuration to the collection
         }
     }
