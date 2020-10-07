@@ -11,7 +11,6 @@ public static class JsonCache {
 	#region <<---------- Properties ---------->>
 	
 	public const string ROOT_FOLDER = "JsonData/";
-	private static readonly StringBuilder sb = new StringBuilder();
 	
 	#endregion <<---------- Properties ---------->>
 
@@ -29,7 +28,8 @@ public static class JsonCache {
 		Directory.CreateDirectory(Path.GetDirectoryName(filePathWithExtension));
 
 		// write
-		using (StreamWriter writer = File.CreateText(filePathWithExtension)) {
+		await using (StreamWriter writer = File.CreateText(filePathWithExtension)) {
+			Console.WriteLine($"Writing file: {filePathWithExtension}");
 			await writer.WriteAsync(jsonNode.ToString(4));
 		}
 	}
@@ -52,10 +52,11 @@ public static class JsonCache {
 		return jsonNodeList;
 	}
 
-	public static async Task<JSONNode> LoadJsonAsync(string filePath) {
+	public static async Task<JSONNode> LoadJsonAsync(string filePath, TimeSpan maxCacheAge = default){
 		try {
-			await LoadJsonToStringBuilderAsync(filePath);
-			return JSON.Parse(sb.ToString());
+			var jsonString = await LoadJsonToStringBuilderAsync(filePath, maxCacheAge);
+			if (string.IsNullOrEmpty(jsonString)) return null;
+			return JSON.Parse(jsonString);
 		} catch (Exception e) {
 			Console.WriteLine(e);
 		}
@@ -64,8 +65,9 @@ public static class JsonCache {
 
 	public static async Task<JSONNode> LoadValueAsync(string filePath, string key) {
 		try {
-			await LoadJsonToStringBuilderAsync(filePath);
-			var jsonNode = JSON.Parse(sb.ToString());
+			var jsonString = await LoadJsonToStringBuilderAsync(filePath);
+			if (string.IsNullOrEmpty(jsonString)) return null;
+			var jsonNode = JSON.Parse(jsonString);
 			return jsonNode[key];
 		} catch (Exception e) {
 			Console.WriteLine(e);
@@ -114,24 +116,36 @@ public static class JsonCache {
 	
 	#region <<---------- Private ---------->>
 	
-	private static async Task LoadJsonToStringBuilderAsync(string filePath) {
+	private static async Task<string> LoadJsonToStringBuilderAsync(string filePath, TimeSpan maxCacheAge = default) {
 		filePath = filePath.Replace('\\', '/').Trim();
 		try {
-			sb.Clear();
-
 			var filePathWithExtension = $"{ROOT_FOLDER}{filePath}.json";
-			if (!File.Exists(filePathWithExtension)) return;
+			if (!File.Exists(filePathWithExtension)) return null;
 
+			if (maxCacheAge != default) {
+
+				var info = new FileInfo(filePathWithExtension);
+				var cacheAge = DateTime.UtcNow - info.LastWriteTimeUtc;
+				if (cacheAge > maxCacheAge) {
+					Console.WriteLine($"Deleting cache with age {cacheAge} from path '{filePathWithExtension}'");
+					File.Delete(filePathWithExtension);
+					return null;
+				}
+			}
+			
 			await using (var sourceStream = new FileStream(filePathWithExtension, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous)) {
+				var sb = new StringBuilder();
 				byte[] buffer = new byte[0x1000];
 				int numRead = 0;
 				while ((numRead = await sourceStream.ReadAsync(buffer, 0, buffer.Length)) != 0) {
 					sb.Append(Encoding.UTF8.GetString(buffer, 0, numRead));
 				}
+				return sb.ToString();
 			}
 		} catch (Exception e) {
 			Console.WriteLine(e);
 		}
+		return null;
 	}
 	
 	#endregion <<---------- Private ---------->>
