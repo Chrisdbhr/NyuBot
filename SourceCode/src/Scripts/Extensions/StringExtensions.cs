@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace NyuBot.Extensions {
 	public static class StringExtensions {
@@ -20,5 +21,17 @@ namespace NyuBot.Extensions {
 			return input.Substring(startIndex, length);
 		}
 		
+		public static string FirstCharToUpper(this string input) {
+			switch (input)
+			{
+				case null: throw new ArgumentNullException(nameof(input));
+				case "": throw new ArgumentException($"{nameof(input)} cannot be empty", nameof(input));
+				default: return input.First().ToString().ToUpper() + input.Substring(1);
+			}
+		}
+
+		public static string CJoin(this string[] input, char separator = ' ') {
+			return string.Join(separator, input);
+		}
 	}
 }
