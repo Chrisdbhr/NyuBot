@@ -30,7 +30,7 @@ namespace NyuBot.Modules {
 			if (locationStrings.Length <= 0) return;
 			var location = locationStrings.CJoin();
 			if (string.IsNullOrEmpty(location)) return;
-			location = location.ToLower();
+			location = ChatService.RemoveDiacritics(location.ToLower());
 
 			// check cache
 			var weatherJson = await JsonCache.LoadJsonAsync($"WeatherInfo/{location}", TimeSpan.FromHours(1));
@@ -57,20 +57,77 @@ namespace NyuBot.Modules {
 				await JsonCache.SaveJsonAsync($"WeatherInfo/{location}", weatherJson);
 			}
 
-			var currentKelvin = weatherJson["main"]["temp"].AsFloat;
-			var currentCelsius = currentKelvin - 273.15f;
+			var currentCelsius = weatherJson["main"]["temp"].AsFloat - 273.15f; // kelvin to celsius
 			
 			var embed = new EmbedBuilder();
 
 			embed.Title = $"{currentCelsius:0} °C";
 			embed.Description = $"Temperatura atual para {weatherJson["name"].Value}";
 
+			// get icon
 			try {
 				var iconCode = weatherJson["weather"][0]["icon"].Value;
 				embed.ThumbnailUrl = $"http://openweathermap.org/img/w/{iconCode}.png";
 
 			} catch (Exception e) {
 				Console.WriteLine($"Error trying to set icon from weather {location}:\n{e}");
+			}
+			
+			// get humildade
+			try {
+				var value = weatherJson["main"]["humidity"].Value;
+				embed.AddField(
+					new EmbedFieldBuilder {
+						Name = $"{value}%",
+						Value = "Humildade",
+						IsInline = true
+					}
+				);
+			} catch (Exception e) {
+				Console.WriteLine($"Error trying to set humidity: {e}");
+			}
+
+			// get sensation
+			try {
+				var value = weatherJson["main"]["feels_like"].AsFloat - 273.15f; // kelvin to celsius
+				embed.AddField(
+					new EmbedFieldBuilder {
+						Name = $"{value:0} °C",
+						Value = "Sensação térmica",
+						IsInline = true
+					}
+				);
+			} catch (Exception e) {
+				Console.WriteLine($"Error trying to set sensation: {e}");
+			}
+			
+			// get wind
+			try {
+				var value = weatherJson["wind"]["speed"].AsFloat * 3.6f; // mp/s to km/h
+				embed.AddField(
+					new EmbedFieldBuilder {
+						Name = $"{value} ",
+						Value = "Ventos (km/h)",
+						IsInline = true
+					}
+				);
+			} catch (Exception e) {
+				Console.WriteLine($"Error trying to set wind: {e}");
+			}
+
+			// get weather name
+			try {
+				var value = weatherJson["weather"][0]["main"].Value;
+				var description = weatherJson["weather"][0]["description"].Value;
+				embed.AddField(
+					new EmbedFieldBuilder {
+						Name = value,
+						Value = description,
+						IsInline = true
+					}
+				);
+			} catch (Exception e) {
+				Console.WriteLine($"Error trying to set weather name and description field: {e}");
 			}
 			
 			await this.ReplyAsync("", false, embed.Build());
