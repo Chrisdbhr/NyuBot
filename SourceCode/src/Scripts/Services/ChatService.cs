@@ -700,6 +700,7 @@ namespace NyuBot {
 		#endregion <<---------- Pensador API ---------->>
 
 
+		
 
 		#region <<---------- A mimir ---------->>
 
@@ -748,6 +749,7 @@ namespace NyuBot {
 		}
 		
 		#endregion <<---------- A mimir ---------->>
+		
 		
 		
 
