@@ -593,9 +593,11 @@ namespace NyuBot {
 		private async Task DayNightImgAndName() {
 			if (this._discord.CurrentUser == null) return;
 
-			if (DateTime.Now.Hour == this._previousHour) return;
-			bool day = DateTime.Now.Hour > 5;
-			this._previousHour = DateTime.Now.Hour;
+			var currentHour = DateTime.UtcNow.AddHours(-3).Hour;
+
+			if (currentHour == this._previousHour) return;
+			bool day = currentHour > 5;
+			this._previousHour = currentHour;
 
 			// change img
 			var imgName = day ? "day" : "night";
@@ -617,12 +619,21 @@ namespace NyuBot {
 		}
 
 		private async Task HourlyMessage() {
-			var time = DateTime.Now;
+			var time = DateTime.UtcNow.AddHours(-3);
 			if (time.Minute != 0) return;
 			
 			foreach (var guild in this._discord.Guilds) {
 				var channel = guild.SystemChannel;
 				if (channel == null) continue;
+
+				if (channel.CachedMessages.Count <= 0) return;
+
+				var lastMsg = channel.CachedMessages.Last();
+
+				bool lastMsgIsFromThisBot = lastMsg != null && lastMsg.Author == this._discord.CurrentUser;
+				if (lastMsgIsFromThisBot) {
+					return;
+				}
 
 				string title = $"{time:h tt}";
 				string msg = null;
@@ -648,21 +659,21 @@ namespace NyuBot {
 					Title = title,
 					Description = msg
 				};
-				
+
 				var msgSend = await channel.SendMessageAsync(string.Empty, false, embed.Build());
 
-				// get random photo
-				try {
-					var client = new RestClient("https://picsum.photos/96");
-					var request = new RestRequest(Method.GET);
-					var timeline = await client.ExecuteAsync(request, CancellationToken.None);
-					if (!string.IsNullOrEmpty(timeline.ResponseUri.OriginalString)) {
-						embed.ThumbnailUrl = timeline.ResponseUri.OriginalString;
-						await msgSend.ModifyAsync(p => p.Embed = embed.Build());
-					}
-				} catch (Exception e) {
-					Console.WriteLine(e);
-				}
+				// // get random photo
+				// try {
+				// 	var client = new RestClient("https://picsum.photos/96");
+				// 	var request = new RestRequest(Method.GET);
+				// 	var timeline = await client.ExecuteAsync(request, CancellationToken.None);
+				// 	if (!string.IsNullOrEmpty(timeline.ResponseUri.OriginalString)) {
+				// 		embed.ThumbnailUrl = timeline.ResponseUri.OriginalString;
+				// 		await msgSend.ModifyAsync(p => p.Embed = embed.Build());
+				// 	}
+				// } catch (Exception e) {
+				// 	Console.WriteLine(e);
+				// }
 				
 			}
 		}
@@ -711,7 +722,7 @@ namespace NyuBot {
 			if (!(msg.Author is SocketGuildUser author)) return;
 
 			var jsonNode = (await JsonCache.LoadJsonAsync(path)) ?? new JSONObject();
-			jsonNode["sleep-start-time"] = DateTime.Now.Ticks.ToString();
+			jsonNode["sleep-start-time"] = DateTime.UtcNow.AddHours(-3).Ticks.ToString();
 			
 			jsonNode["isSleeping"] = true;
 			
@@ -729,7 +740,7 @@ namespace NyuBot {
 			
 			var value = jsonNode["sleep-start-time"].Value;
 			var sleepTime = new DateTime(Convert.ToInt64(value));
-			var totalSleepTime = DateTime.Now - sleepTime;
+			var totalSleepTime = DateTime.UtcNow.AddHours(-3) - sleepTime;
 			
 			var embed = new EmbedBuilder {
 				Title = $"Parece que {user.GetNameSafe()} acordou",
