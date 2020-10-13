@@ -569,7 +569,7 @@ namespace NyuBot {
 			
 			var json = await JsonCache.LoadJsonAsync("Ip") ?? new JSONObject {["lastIp"] = ""};
 			
-			if (json.Value == ip) return;
+			if (json["lastIp"].Value == ip) return;
 
 			// ip changed
 			
@@ -589,7 +589,12 @@ namespace NyuBot {
 			if (string.IsNullOrEmpty(timeline.Content)) return null;
 			return timeline.Content.Trim();
 		}
+		
+		#endregion <<---------- Bot IP ---------->>
 
+		
+		
+		
 		private async Task DayNightImgAndName() {
 			if (this._discord.CurrentUser == null) return;
 
@@ -628,12 +633,9 @@ namespace NyuBot {
 
 				if (channel.CachedMessages.Count <= 0) return;
 
-				var lastMsg = channel.CachedMessages.Last();
+				var lastUserMsg = channel.CachedMessages.Last() as IUserMessage;
 
-				bool lastMsgIsFromThisBot = lastMsg != null && lastMsg.Author.Id == this._discord.CurrentUser.Id;
-				if (lastMsgIsFromThisBot) {
-					return;
-				}
+				bool lastMsgIsFromThisBot = lastUserMsg != null && lastUserMsg.Author.Id == this._discord.CurrentUser.Id;
 
 				string title = $"{time:h tt}";
 				string msg = null;
@@ -660,7 +662,16 @@ namespace NyuBot {
 					Description = msg
 				};
 
-				var msgSend = await channel.SendMessageAsync(string.Empty, false, embed.Build());
+
+				RestUserMessage msgSend = null;
+				if (lastMsgIsFromThisBot) {
+					await lastUserMsg.ModifyAsync(p =>
+							p.Embed = embed.Build()
+					);
+				}
+				else {
+					msgSend = await channel.SendMessageAsync(string.Empty, false, embed.Build());
+				}
 
 				// // get random photo
 				// try {
@@ -677,9 +688,7 @@ namespace NyuBot {
 				
 			}
 		}
-
-		#endregion <<---------- Bot IP ---------->>
-
+		
 
 		
 
