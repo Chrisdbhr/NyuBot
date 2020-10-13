@@ -630,7 +630,7 @@ namespace NyuBot {
 
 				var lastMsg = channel.CachedMessages.Last();
 
-				bool lastMsgIsFromThisBot = lastMsg != null && lastMsg.Author == this._discord.CurrentUser;
+				bool lastMsgIsFromThisBot = lastMsg != null && lastMsg.Author.Id == this._discord.CurrentUser.Id;
 				if (lastMsgIsFromThisBot) {
 					return;
 				}
