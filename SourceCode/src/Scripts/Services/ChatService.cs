@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -637,7 +638,7 @@ namespace NyuBot {
 
 				bool lastMsgIsFromThisBot = lastUserMsg != null && lastUserMsg.Author.Id == this._discord.CurrentUser.Id;
 
-				string title = $"{time:h tt}";
+				string title = time.ToString("h tt", new CultureInfo("pt-BR"));
 				string msg = null;
 				switch (time.Hour) {
 					case 0:
