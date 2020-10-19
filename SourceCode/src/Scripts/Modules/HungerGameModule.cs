@@ -22,9 +22,9 @@ namespace NyuBot.Modules {
 			var matchJsonNode = await JsonCache.LoadJsonAsync($"Games/HungerGames/{this.Context.Channel}");
 			if (matchJsonNode != null) return; // already playing
 
-			var usersAsyncEnum = this.Context.Channel.GetUsersAsync()?.GetEnumerator();
+			var usersAsyncEnum = this.Context.Channel.GetUsersAsync()?.GetAsyncEnumerator();
 			if (usersAsyncEnum == null) return;
-			var moved = await usersAsyncEnum.MoveNext();
+			var moved = await usersAsyncEnum.MoveNextAsync();
 			if (!moved) return;
 
 			var usersList = usersAsyncEnum.Current;
