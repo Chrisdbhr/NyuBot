@@ -1,0 +1,3 @@
+[submodule "SourceCode/src/Scripts/SimpleJsonCache"]
+	path = SourceCode/src/Scripts/SimpleJsonCache
+	url = https://github.com/Chrisdbhr/SimpleJsonCache.git
