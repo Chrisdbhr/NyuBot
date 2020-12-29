@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
@@ -13,8 +14,8 @@ namespace NyuBot {
 
         public Startup(string[] args) {
             var builder = new ConfigurationBuilder()        // Create a new instance of the config builder
-                .SetBasePath(AppContext.BaseDirectory)      // Specify the default location for the config file
-                .AddYamlFile("_config.yml");                // Add this (yaml encoded) file to the configuration
+                          .SetBasePath(AppContext.BaseDirectory)      // Specify the default location for the config file
+                          .AddYamlFile("_config.yml");                // Add this (yaml encoded) file to the configuration
             this.Configuration = builder.Build();           // Build the configuration
         }
 
@@ -34,6 +35,7 @@ namespace NyuBot {
             provider.GetRequiredService<ChatService>(); 		// Start the chat service handler
             provider.GetRequiredService<HungerGameService>();
             provider.GetRequiredService<VoiceService>();
+            provider.GetRequiredService<ExchangeService>();
 
             await provider.GetRequiredService<StartupService>().StartAsync();       // Start the startup service
             await Task.Delay(-1);                               // Keep the program alive
@@ -56,6 +58,7 @@ namespace NyuBot {
             .AddSingleton<Random>()                 // Add random to the collection
             .AddSingleton<AudioService>()           // Add audio service to collection
             .AddSingleton<VoiceService>()           // Add audio service to collection
+            .AddSingleton<ExchangeService>()           // Add audio service to collection
             .AddSingleton<ChatService>()            // Add chat service to collection
             .AddSingleton<HungerGameService>()
             .AddSingleton<WeatherService>()
