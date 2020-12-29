@@ -67,9 +67,8 @@ namespace NyuBot.Modules {
         }
 
         [Command("randomimg")]
-        public async Task GetRandomImg() {
-            
-            var client = new RestClient("https://picsum.photos/96");
+        public async Task GetRandomImg(int desiredResolution = 512) {
+            var client = new RestClient($"https://picsum.photos/{desiredResolution}");
             var request = new RestRequest(Method.GET);
             var timeline = await client.ExecuteAsync(request, CancellationToken.None);
             
@@ -80,6 +79,16 @@ namespace NyuBot.Modules {
             };
 
             await this.ReplyAsync("", false, embed.Build());
+        }
+
+        [Command("getstatus")]
+        [Summary("Get if user real status")]
+        public async Task GetUserStatus(SocketGuildUser user) {
+            var embed = new EmbedBuilder {
+                Title = user.Status.ToString(),
+                Description = $"Status de {MentionUtils.MentionUser(user.Id)}"
+            };
+            await this.ReplyAsync("",false, embed.Build());
         }
         
     }
