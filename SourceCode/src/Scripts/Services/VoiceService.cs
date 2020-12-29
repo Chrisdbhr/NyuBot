@@ -16,7 +16,7 @@ namespace NyuBot {
 
 			this._discord = discord;
 
-			Observable.Timer(TimeSpan.FromHours(1)).Repeat().Subscribe(async _ => {
+			Observable.Interval(TimeSpan.FromHours(1)).Subscribe(async _ => {
 				await this.CheckForRenameVoiceChannels();
 			}).AddTo(this._disposable);
 		}
