@@ -64,7 +64,7 @@ namespace NyuBot {
 
 			
 			// status
-			Observable.Timer(TimeSpan.FromHours(1)).Repeat().Subscribe(async _ => {
+			Observable.Timer(TimeSpan.FromMinutes(30)).Repeat().Subscribe(async _ => {
 				await this.SetStatusAsync();
 			}).AddTo(this._disposable);
 
@@ -115,12 +115,12 @@ namespace NyuBot {
 			await channel.SendMessageAsync($"Temos uma nova pessoinha no servidor, digam **oi** para {socketGuildUser.Mention}!");
 		}
 
-		private async Task UserBanned(SocketUser socketGuildUser, SocketGuild socketGuild) {
-			await this.UserLeavedGuild(socketGuildUser as SocketGuildUser, " saiu do servidor...");
+		private async Task UserBanned(SocketUser socketUser, SocketGuild socketGuild) {
+			await this.UserLeavedGuild(socketUser, socketGuild, " saiu do servidor...");
 		}	
 		
 		private async Task UserLeft(SocketGuildUser socketGuildUser) {
-			await this.UserLeavedGuild(socketGuildUser, " saiu do servidor.");
+			await this.UserLeavedGuild(socketGuildUser, socketGuildUser.Guild, " saiu do servidor.");
 		}
 
 		private async Task MessageReceivedAsync(SocketMessage socketMessage) {
@@ -159,11 +159,19 @@ namespace NyuBot {
 		}
 		
 		private async Task MessageWithAttachment(SocketMessage socketMessage) {
+			if (!(socketMessage is SocketUserMessage userMsg)) return;
+			if (!(userMsg.Author is SocketGuildUser guildUser)) return;
+			var guildId = guildUser.Guild.Id;
 			foreach (var attachment in socketMessage.Attachments) {
 				using (var client = new WebClient()) {
-					var targetDir = $"FilesBackup/{socketMessage.Channel.Name}/";
+					var dateTime = DateTime.UtcNow;
+					var targetDir = $"FilesBackup/{guildId}/{socketMessage.Channel.Name}/{dateTime.Year}/{dateTime.Month}/";
+					var fileName = Path.Combine(targetDir, attachment.Filename);
 					Directory.CreateDirectory(targetDir);
-					await client.DownloadFileTaskAsync(new Uri(attachment.Url), $"{targetDir}{attachment.Filename}");
+					if (File.Exists(fileName)) {
+						fileName += $"_{dateTime.Ticks}";
+					}
+					await client.DownloadFileTaskAsync(new Uri(attachment.Url), fileName);
 				}
 			}
 		}
@@ -235,7 +243,24 @@ namespace NyuBot {
 			}
 			
 			#endregion <<---------- Setup message string to read ---------->>
-	
+
+
+			#region <<---------- New Users Anti Spam ---------->>
+
+			if (messageString.Length > 140) {
+				if (userMessage.Author is SocketGuildUser guildUser) {
+					if (!guildUser.IsBot 
+						&& guildUser.JoinedAt.HasValue 
+						&& DateTimeOffset.UtcNow < guildUser.JoinedAt.Value.AddDays(1)) {
+						Console.WriteLine($"Deleting {guildUser.GetNameSafe()} message because this user is new on this guild.");
+						await userMessage.DeleteAsync();
+						return;
+					}
+				}
+			}
+			
+			#endregion <<---------- New Users Anti Spam ---------->>
+			
 			
 			#region <<---------- User Specific ---------->>
 
@@ -449,28 +474,34 @@ namespace NyuBot {
 			}
 			#endregion
 
-			#region Links
-			#region Black Yeast
-			// Firsts
-			if (isQuestion && HasAllWords(messageString, new[] {"black", "yeast"})) {
-				// user is speaking about Black Yeast.
-				await userMessage.Channel.SendMessageAsync(userMessage.Author.Mention + " vc disse Black Yeast? Veja mais infomações dele aqui: https://chrisdbhr.github.io/blackyeast");
-				return;
-			}
-			#endregion
+			#region <<---------- Anti trava discord ---------->>
 
-			#region Canal
-			if (HasAllWords(messageString, new[] {"canal", "youtube", "chris"})) {
-				await userMessage.Channel.SendMessageAsync("Se quer saber qual o canal do Chris o link é esse: https://www.youtube.com/christopher7");
+			if (messageString.Length > 16 && ( 
+					messageString.StartsWith("𒀱") 
+					|| messageString.StartsWith("⬛")
+					|| messageString.StartsWith("◼")
+					|| messageString.StartsWith("\\ðŸ¤")
+					|| messageString.StartsWith("¡ê")
+					|| messageString.StartsWith("◻◾")
+					)) {
+
+				var guild = this._discord.GetGuild(userMessage.Reference.GuildId.Value);
+				
+				// quarantine role
+				if (userMessage.Author is SocketGuildUser guildUser) {
+					var roleToAdd = guild.GetRole(474627963221049344);
+					if (roleToAdd != null) {
+						await guildUser.AddRoleAsync(roleToAdd);
+					}
+				}
+				
+				await userMessage.DeleteAsync();
+				var msg = $"{MentionUtils.MentionUser(guild.OwnerId)} o {MentionUtils.MentionUser(userMessage.Author.Id)} enviou uma mensagem suspeita...";
+				await userMessage.Channel.SendMessageAsync(msg);
 				return;
 			}
 			
-			if (messageString.Contains("twitch") && HasAtLeastOneWord(messageString, new[] {"seu", "canal"})) {
-				await userMessage.Channel.SendMessageAsync("O link para o Twitch do Chris é esse: https://www.twitch.tv/chrisdbhr");
-				return;
-			}
-			#endregion
-			#endregion
+			#endregion <<---------- Anti trava discord ---------->>
 
 			//!!! THIS PART OF THE CODE BELOW MUST BE AS THE LAST BECAUSE:
 			// TODO bot log unknown commands on file 
@@ -530,17 +561,27 @@ namespace NyuBot {
 		#region <<---------- User ---------->>
 		
 		private async Task SetStatusAsync() {
-			var jsonArray = (await JsonCache.LoadValueAsync("ChrisGames", "data")).AsArray;
-			string gameName = null;
-			if (jsonArray != null) {
-				gameName = jsonArray[this._rand.Next(0, jsonArray.Count)].Value;
+			var statusText = "chrisjogos.com";
+			try {
+				var activitiesJsonArray = (await JsonCache.LoadValueAsync("BotStatus", "activity")).AsArray;
+				var index = this._rand.Next(0, activitiesJsonArray.Count);
+				var statusTextArray = activitiesJsonArray[index]["answers"].AsArray;
+				var selectedStatus = statusTextArray[this._rand.Next(0, statusTextArray.Count)].Value;
+				await this._discord.SetGameAsync(
+					selectedStatus, 
+					(ActivityType)index == ActivityType.Streaming ? "https://twitch.tv/chrisdbhr" : null, 
+					(ActivityType)index
+					);
+
+			} catch (Exception e) {
+				Console.WriteLine(e);
+				if (this._discord == null) return;
+				await this._discord.SetGameAsync(statusText, null, ActivityType.Watching);
 			}
-			if (this._discord == null) return;
-			await this._discord.SetGameAsync(gameName ?? "chrisjogos.com");
 		}
 		
-		private async Task UserLeavedGuild(SocketGuildUser socketGuildUser, string sufixMsg) {
-			var channel = socketGuildUser.Guild.SystemChannel;
+		private async Task UserLeavedGuild(SocketUser socketUser, SocketGuild socketGuild, string sufixMsg) {
+			var channel = socketGuild.SystemChannel;
 			if (channel == null) return;
 			
 			var jsonArray = (await JsonCache.LoadValueAsync("Answers/UserLeave", "data")).AsArray;
@@ -549,13 +590,36 @@ namespace NyuBot {
 				customAnswer = jsonArray[this._rand.Next(0, jsonArray.Count)].Value;
 			}
 			
-			var sb = new StringBuilder();
-			sb.Append($"{socketGuildUser.Username}#{socketGuildUser.DiscriminatorValue}");
-			sb.Append($"{(socketGuildUser.Nickname != null ? $" ({socketGuildUser.Nickname})" : null)}");
-			sb.AppendLine($"{sufixMsg}");
-			sb.AppendLine($"**{customAnswer}**");
-			sb.AppendLine($"Temos {socketGuildUser.Guild.MemberCount} membros agora.");
-			await channel.SendMessageAsync(sb.ToString());
+			var embed = new EmbedBuilder {
+				Description = $"Temos {socketGuild.MemberCount} membros agora.",
+				Color = Color.Red
+			};
+			
+			var title = new StringBuilder();
+			title.Append($"{socketUser.Username}#{socketUser.DiscriminatorValue}");
+			title.Append($"{sufixMsg}");
+
+			embed.Title = title.ToString();
+			
+			var sendMsg = await channel.SendMessageAsync(customAnswer, false, embed.Build());
+			
+			// just leaved guild
+			if (socketUser is SocketGuildUser socketGuildUser) {
+				title.Append($"{(socketGuildUser.Nickname != null ? $" ({socketGuildUser.Nickname})" : null)}");
+
+				if (socketGuildUser.JoinedAt.HasValue) {
+					embed.Footer = new EmbedFooterBuilder {
+						Text = $"Membro desde {socketGuildUser.JoinedAt.Value.ToString("dd/MM/yy hh tt")}"
+					};
+				}
+			}
+			else {
+				// was banned
+				var guildOwner = socketGuild.Owner;
+				await guildOwner.SendMessageAsync($"Banido do servidor {socketGuild.Name}", false, embed.Build());
+			}
+			
+			await sendMsg.AddReactionAsync(new Emoji(":regional_indicator_f:"));
 		}
 		
 		#endregion <<---------- User ---------->>
@@ -627,30 +691,35 @@ namespace NyuBot {
 		private async Task HourlyMessage() {
 			var time = DateTime.UtcNow.AddHours(-3);
 			if (time.Minute != 0) return;
+			if (time.Hour == 0) {
+				this._audioService.PlaySoundByNameOnAllMostPopulatedAudioChannels("meianoite").CAwait();
+				return;
+			}
+			return;
 			
 			foreach (var guild in this._discord.Guilds) {
-				var channel = guild.SystemChannel;
-				if (channel == null) continue;
-
-				if (channel.CachedMessages.Count <= 0) return;
-
-				var lastUserMsg = channel.CachedMessages.Last() as IUserMessage;
-
-				bool lastMsgIsFromThisBot = lastUserMsg != null && lastUserMsg.Author.Id == this._discord.CurrentUser.Id;
-
-				string title = time.ToString("h tt", new CultureInfo("pt-BR"));
+				
+				string title = time.ToString("h tt", CultureInfo.InvariantCulture);
 				string msg = null;
 				switch (time.Hour) {
 					case 0:
 						title = "Meia noite, vão dormi";
 						msg = $"Horário oficial do óleo de macaco";
-						this._audioService.PlaySoundByNameOnAllMostPopulatedAudioChannels("meianoite").CAwait();
 						break;
 					case 12:
 						title = "Meio dia";
 						msg = $"Hora de comer *nhon nhon nhon*";
 						break;
 				}
+
+				var channel = guild.SystemChannel;
+				if (channel == null) continue;
+
+				if (channel.CachedMessages.Count <= 0) return;
+
+				var lastUserMsg = channel.CachedMessages.OrderBy(m => m.Timestamp).Last() as IUserMessage;
+
+				bool lastMsgIsFromThisBot = lastUserMsg != null && lastUserMsg.Author.Id == this._discord.CurrentUser.Id;
 
 				// motivation phrase
 				if (string.IsNullOrEmpty(msg)) {
@@ -666,9 +735,11 @@ namespace NyuBot {
 
 				RestUserMessage msgSend = null;
 				if (lastMsgIsFromThisBot) {
-					await lastUserMsg.ModifyAsync(p =>
-							p.Embed = embed.Build()
-					);
+					if (lastUserMsg.MentionedUserIds.Count <= 0) {
+						await lastUserMsg.ModifyAsync(p =>
+								p.Embed = embed.Build()
+						);
+					}
 				}
 				else {
 					msgSend = await channel.SendMessageAsync(string.Empty, false, embed.Build());
