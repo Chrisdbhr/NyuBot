@@ -14,7 +14,7 @@ namespace NyuBot {
 			this._disposable?.Dispose();
 			this._disposable = new CompositeDisposable();
 
-			discord = this._discord;
+			this._discord = discord;
 
 			Observable.Timer(TimeSpan.FromHours(1)).Repeat().Subscribe(async _ => {
 				await this.CheckForRenameVoiceChannels();
