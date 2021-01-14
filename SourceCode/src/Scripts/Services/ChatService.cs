@@ -183,7 +183,7 @@ namespace NyuBot {
 		private async Task PrivateMessageReceivedAsync(SocketMessage socketMessage, IDMChannel dmChannel) {
 			Console.WriteLine($"Private message received from {socketMessage.Author}: {socketMessage.Content}");
 
-			if (socketMessage.Content.ToLower().Contains("ip")) {
+			if (socketMessage.Content.ToLower() == "ip") {
 				var ip = await this.GetBotPublicIp();
 				await dmChannel.SendMessageAsync($"Meu IP:```{ip}```");
 			}
