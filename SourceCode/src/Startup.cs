@@ -36,6 +36,7 @@ namespace NyuBot {
             provider.GetRequiredService<HungerGameService>();
             provider.GetRequiredService<VoiceService>();
             provider.GetRequiredService<ExchangeService>();
+            provider.GetRequiredService<JoinAndLeaveService>();
 
             await provider.GetRequiredService<StartupService>().StartAsync();       // Start the startup service
             await Task.Delay(-1);                               // Keep the program alive
@@ -62,6 +63,7 @@ namespace NyuBot {
             .AddSingleton<ChatService>()            // Add chat service to collection
             .AddSingleton<HungerGameService>()
             .AddSingleton<WeatherService>()
+            .AddSingleton<JoinAndLeaveService>()
             .AddSingleton(this.Configuration);      // Add the configuration to the collection
         }
     }
