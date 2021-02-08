@@ -14,10 +14,9 @@ namespace NyuBot.Modules
         private readonly CommandService _service;
         private readonly IConfigurationRoot _config;
 
-        public HelpModule(CommandService service, IConfigurationRoot config)
-        {
-            _service = service;
-            _config = config;
+        public HelpModule(CommandService service, IConfigurationRoot config) {
+            this._service = service;
+            this._config = config;
         }
 
         [Command("help")]
@@ -90,53 +89,15 @@ namespace NyuBot.Modules
 
         [Command("lista")]
         public async Task SoundList() {
-            const int MAX_EMBED_FIELDS = 25;
-            
-            var fields = new List<EmbedFieldBuilder>();
-            
-            // get all names
-            var allFiles = Directory.GetFiles("Voices/").Select(Path.GetFileNameWithoutExtension).ToList();
+            var e = new EmbedBuilder();
+            e.Title = "Lista de sons";
+            e.AddField(new EmbedFieldBuilder {
+                Name = "Acesse a página abaixo que exibe quais sons posso tocar",
+                Value = "https://github.com/Chrisdbhr/NyuBot/tree/master/Voices"
+                        
+            });
+            await this.ReplyAsync("",false,e.Build());
 
-            while (allFiles.Count > 0) {
-                var name = allFiles[0];
-                var value = ".";
-                allFiles.RemoveAt(0);
-                if (allFiles.Count > 0) {
-                    value = allFiles[0];
-                    allFiles.RemoveAt(0);
-                }
-                fields.Add(new EmbedFieldBuilder {
-                    Name = name,
-                    Value = value,
-                    IsInline = true
-                });
-            }
-            
-            var numberOfFields = fields.Count;
-
-            if (numberOfFields <= 0) {
-                await this.ReplyAsync("Nao tem nenhum som na pasta de sons pra eu tocar (alo ademir)");
-                return;
-            }
-
-            EmbedBuilder embed = null;
-
-            int page = 1;
-            float totalPages = ((float)fields.Count / MAX_EMBED_FIELDS);
-            if(totalPages > (int)totalPages) totalPages += 1;
-            
-            while (fields.Count > 0) {
-                embed = new EmbedBuilder();
-                embed.Title = $"Lista de sons #{page++}/{(int)totalPages}";
-                embed.Description = "Posso tocar todos esses sons";
-                for (int i = 0; i < MAX_EMBED_FIELDS && fields.Count > 0; i++) {
-                    embed.AddField(fields[0]);
-                    fields.RemoveAt(0);
-                }
-                
-                await this.ReplyAsync(string.Empty, false, embed.Build());
-            }
-            
         }
     }
 }
