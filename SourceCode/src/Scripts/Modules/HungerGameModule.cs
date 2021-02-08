@@ -18,6 +18,8 @@ namespace NyuBot.Modules {
 		[Summary("Start a new Hunger Game simulation")]
 		public async Task NewHungerGameSimulation() {
 			if (this.Context?.Channel == null) return;
+			if (this.Context.Guild.Id == 798667749081481226 && this.Context.Channel.Id != 802832949460336660) return;
+			
 			await this.StopHungerGameSimulation();
 			var matchJsonNode = await JsonCache.LoadJsonAsync($"Games/HungerGames/{this.Context.Channel}");
 			if (matchJsonNode != null) return; // already playing
@@ -30,7 +32,7 @@ namespace NyuBot.Modules {
 			var usersList = usersAsyncEnum.Current;
 			if (!usersList.Any()) return;
 
-			int numberOfPlayers = 100;
+			int numberOfPlayers = 500;
 			
 			await this._service.NewHungerGameSimulation(this.Context, usersList, numberOfPlayers);
 		}
