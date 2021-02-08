@@ -16,24 +16,13 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="3.1.10" />
     <PackageReference Include="NetEscapades.Configuration.Yaml" Version="1.6.0" />
+    <PackageReference Include="Lavalink4NET.Discord.NET" Version="1.6.2" />
     <PackageReference Include="RestSharp" Version="106.11.7" />
     <PackageReference Include="System.Reactive" Version="4.4.1" />
   </ItemGroup>
 
   <ItemGroup>
     <None Update="_config.yml">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="ffmpeg.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="libopus.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="libsodium.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="opus.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="app.ico">
@@ -50,15 +39,6 @@
     </Content>
   </ItemGroup>
   
-  <ItemGroup>
-    <Content Include="Voices\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Update="Voices\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
   <ItemGroup>
     <Content Include="Assets\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

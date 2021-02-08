@@ -1,15 +1,18 @@
 ﻿using System;
-using System.Globalization;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using Lavalink4NET;
+using Lavalink4NET.DiscordNet;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NyuBot.HungerGames;
 
 namespace NyuBot {
-    public class Startup {
+    public class Startup : IDisposable {
+
+        private ServiceProvider _serviceProvider;
         public IConfigurationRoot Configuration { get; }
 
         public Startup(string[] args) {
@@ -28,17 +31,22 @@ namespace NyuBot {
             var services = new ServiceCollection();             // Create a new instance of a service collection
             this.ConfigureServices(services);
 
-            var provider = services.BuildServiceProvider();     // Build the service provider
-            provider.GetRequiredService<LoggingService>();      // Start the logging service
-            provider.GetRequiredService<CommandHandler>(); 		// Start the command handler service
-            provider.GetRequiredService<AudioService>(); 		// Start the chat service handler
-            provider.GetRequiredService<ChatService>(); 		// Start the chat service handler
-            provider.GetRequiredService<HungerGameService>();
-            provider.GetRequiredService<VoiceService>();
-            provider.GetRequiredService<ExchangeService>();
-            provider.GetRequiredService<JoinAndLeaveService>();
-
-            await provider.GetRequiredService<StartupService>().StartAsync();       // Start the startup service
+            this._serviceProvider = services.BuildServiceProvider();     // Build the service provider
+            
+            this._serviceProvider.GetRequiredService<LoggingService>();      // Start the logging service
+            this._serviceProvider.GetRequiredService<CommandHandler>(); 		// Start the command handler service
+            this._serviceProvider.GetRequiredService<AudioService>(); 		// Start the chat service handler
+            this._serviceProvider.GetRequiredService<ChatService>(); 		// Start the chat service handler
+            this._serviceProvider.GetRequiredService<HungerGameService>();
+            this._serviceProvider.GetRequiredService<VoiceService>();
+            this._serviceProvider.GetRequiredService<ExchangeService>();
+            this._serviceProvider.GetRequiredService<JoinAndLeaveService>();
+            this._serviceProvider.GetRequiredService<ModeratorService>();
+            this._serviceProvider.GetRequiredService<AutoReactService>();
+            this._serviceProvider.GetRequiredService<IAudioService>();
+            this._serviceProvider.GetRequiredService<DatabaseService>();
+            
+            await this._serviceProvider.GetRequiredService<StartupService>().StartAsync();       // Start the startup service
             await Task.Delay(-1);                               // Keep the program alive
         }
 
@@ -64,7 +72,22 @@ namespace NyuBot {
             .AddSingleton<HungerGameService>()
             .AddSingleton<WeatherService>()
             .AddSingleton<JoinAndLeaveService>()
+            .AddSingleton<ModeratorService>()
+            .AddSingleton<AutoReactService>()
+            .AddSingleton<IAudioService, LavalinkNode>()
+            .AddSingleton<IDiscordClientWrapper, DiscordClientWrapper>()
+            .AddSingleton(new LavalinkNodeOptions {
+                AllowResuming = true,
+                Password = "",
+                RestUri = "http://localhost:8080",
+                DisconnectOnStop = false
+            })
+            .AddSingleton<DatabaseService>()
             .AddSingleton(this.Configuration);      // Add the configuration to the collection
+        }
+
+        public void Dispose() {
+            this._serviceProvider.Dispose();
         }
     }
 }
