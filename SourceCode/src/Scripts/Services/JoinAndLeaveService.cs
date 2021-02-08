@@ -29,7 +29,7 @@ namespace NyuBot {
 			await this._log.Info($"{socketGuildUser.Username} entrou no servidor {socketGuildUser.Guild.Name}");
 			
 			var guild = socketGuildUser.Guild;
-			var jsonNode = await JsonCache.LoadValueAsync($"GuildSettings/{guild.Id}", "joinAndLeaveChannelId");
+			var jsonNode = await JsonCache.LoadValueAsync($"GuildSettings/{guild.Id}", "joinChannelId");
 			if (jsonNode == null) return;
 			var channelId = jsonNode.Value;
 			if (string.IsNullOrEmpty(channelId)) return;
@@ -50,7 +50,7 @@ namespace NyuBot {
 		}
 		
 		private async Task UserLeavedGuild(SocketUser socketUser, SocketGuild socketGuild, string sufixMsg) {
-			var jsonNode = await JsonCache.LoadValueAsync($"GuildSettings/{socketGuild.Id}", "joinAndLeaveChannelId");
+			var jsonNode = await JsonCache.LoadValueAsync($"GuildSettings/{socketGuild.Id}", "leaveChannelId");
 			if (jsonNode == null) return;
 			var channelId = jsonNode.Value;
 			if (string.IsNullOrEmpty(channelId)) return;
