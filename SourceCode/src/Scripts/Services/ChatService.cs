@@ -23,8 +23,8 @@ namespace NyuBot {
 	public class ChatService : IDisposable {
 
 		#region <<---------- Initializers ---------->>
-		
-		public ChatService(DiscordSocketClient discord, CommandService commands, AudioService audioService) {
+
+		public ChatService(DiscordSocketClient discord, CommandService commands, AudioService audioService, LoggingService loggingService) {
 			this._disposable?.Dispose();
 			this._disposable = new CompositeDisposable();
 
@@ -32,29 +32,21 @@ namespace NyuBot {
 			this._discord = discord;
 			this._commands = commands;
 			this._audioService = audioService;
-			
+			this._log = loggingService;
+
 			this._discord.MessageReceived += this.MessageReceivedAsync;
 			this._discord.MessageReceived += this.MessageWithAttachment;
 			this._discord.MessageDeleted += this.MessageDeletedAsync;
 			this._discord.MessageUpdated += this.OnMessageUpdated;
-			
-			this._discord.UserJoined += this.UserJoined;
-			this._discord.UserLeft += this.UserLeft;
-			this._discord.UserBanned += this.UserBanned;
-			this._discord.UserUpdated += async (oldUser, newUser) => {
-				if (newUser.IsBot) return;
-				Console.WriteLine($"UserUpdated: {newUser.Username}, Status: {newUser.Status}");
-			};
 
 			this._discord.UserVoiceStateUpdated += async (user, oldState, newState) => {
-				if(!(user is SocketGuildUser socketGuildUser)) return;
+				if (!(user is SocketGuildUser socketGuildUser)) return;
 				if (oldState.VoiceChannel == null && newState.VoiceChannel != null) {
-					// joined voice channel
 					await this.InformUserWakeUp(socketGuildUser);
-				} 
-			}; 
+				}
+			};
 
-			
+
 			// first triggers
 			Observable.Timer(TimeSpan.FromSeconds(5)).Subscribe(async _ => {
 				await this.SetStatusAsync();
@@ -62,86 +54,69 @@ namespace NyuBot {
 				await this.HourlyMessage();
 			}).AddTo(this._disposable);
 
-			
+
 			// status
-			Observable.Timer(TimeSpan.FromMinutes(30)).Repeat().Subscribe(async _ => {
-				await this.SetStatusAsync();
-			}).AddTo(this._disposable);
+			Observable.Timer(TimeSpan.FromMinutes(30)).Repeat().Subscribe(async _ => { await this.SetStatusAsync(); }).AddTo(this._disposable);
 
 			// check for bot ip change
-			Observable.Timer(TimeSpan.FromMinutes(10)).Repeat().Subscribe(async _ => {
-				await this.CheckForBotPublicIp();
-			}).AddTo(this._disposable);
+			Observable.Timer(TimeSpan.FromMinutes(10)).Repeat().Subscribe(async _ => { await this.CheckForBotPublicIp(); }).AddTo(this._disposable);
 
 			// change image at midnight
-			Observable.Timer(TimeSpan.FromMinutes(15)).Repeat().Subscribe(async _ => {
-				await this.DayNightImgAndName();
-			}).AddTo(this._disposable);
-			
+			Observable.Timer(TimeSpan.FromMinutes(15)).Repeat().Subscribe(async _ => { await this.DayNightImgAndName(); }).AddTo(this._disposable);
+
 			// hora em hora
-			Observable.Timer(TimeSpan.FromMinutes(1)).Repeat().Subscribe(async _ => {
-				await this.HourlyMessage();
-			}).AddTo(this._disposable);
+			Observable.Timer(TimeSpan.FromMinutes(1)).Repeat().Subscribe(async _ => { await this.HourlyMessage(); }).AddTo(this._disposable);
 		}
-		
+
+
 		#endregion <<---------- Initializers ---------->>
 
-		
-		
-		
+
+
+
 		#region <<---------- Properties ---------->>
-		
+
 		private readonly DiscordSocketClient _discord;
 		private readonly CommandService _commands;
 		private readonly AudioService _audioService;
+		private readonly LoggingService _log;
 		private readonly Random _rand = new Random();
-		
+
 		private System.Timers.Timer _bumpTimer;
 		private Dictionary<ulong, SocketMessage> _lastsSocketMessageOnChannels = new Dictionary<ulong, SocketMessage>();
 		private int _previousHour = -1;
 
 		private CompositeDisposable _disposable;
-		
+
 		#endregion <<---------- Properties ---------->>
-		
-		
-		
-		
+
+
+
+
 		#region <<---------- Callbacks ---------->>
-
-		private async Task UserJoined(SocketGuildUser socketGuildUser) {
-			var channel = socketGuildUser.Guild.SystemChannel;
-			if (channel == null) return;
-			await channel.SendMessageAsync($"Temos uma nova pessoinha no servidor, digam **oi** para {socketGuildUser.Mention}!");
-		}
-
-		private async Task UserBanned(SocketUser socketUser, SocketGuild socketGuild) {
-			await this.UserLeavedGuild(socketUser, socketGuild, " saiu do servidor...");
-		}	
-		
-		private async Task UserLeft(SocketGuildUser socketGuildUser) {
-			await this.UserLeavedGuild(socketGuildUser, socketGuildUser.Guild, " saiu do servidor.");
-		}
 
 		private async Task MessageReceivedAsync(SocketMessage socketMessage) {
 			if (!(socketMessage is SocketUserMessage userMessage)) return;
+
+			// private message
+			if (userMessage.Channel is IDMChannel dmChannel) {
+				await this.PrivateMessageReceivedAsync(socketMessage, dmChannel);
+				return;
+			}
+
+			// normal msg
 			switch (userMessage.Source) {
 				case MessageSource.System:
 					break;
 				case MessageSource.User:
-					if (userMessage.Channel is IDMChannel dmChannel) {
-						await this.PrivateMessageReceivedAsync(socketMessage, dmChannel);
+					await this.UserMessageReceivedAsync(userMessage);
+
+					// check user sleeping
+					if (userMessage.Content?.ToLower().Replace(" ", string.Empty) == "amimir") {
+						await this.SetUserIsSleeping(userMessage);
 					}
 					else {
-						await this.UserMessageReceivedAsync(userMessage);
-						
-						// check user sleeping
-						if (userMessage.Content.ToLower() == "a mimir") {
-							await this.SetUserIsSleeping(userMessage);
-						}
-						else {
-							await this.InformUserWakeUp(userMessage.Author as SocketGuildUser);
-						}
+						await this.InformUserWakeUp(userMessage.Author as SocketGuildUser);
 					}
 					break;
 				case MessageSource.Bot:
@@ -157,7 +132,7 @@ namespace NyuBot {
 			var message = cacheable.Value;
 			Console.WriteLine($"[MessageDeleted] from {message.Author.Username} in {socketMessageChannel.Name}: '{message.Content}'");
 		}
-		
+
 		private async Task MessageWithAttachment(SocketMessage socketMessage) {
 			if (!(socketMessage is SocketUserMessage userMsg)) return;
 			if (!(userMsg.Author is SocketGuildUser guildUser)) return;
@@ -165,7 +140,7 @@ namespace NyuBot {
 			foreach (var attachment in socketMessage.Attachments) {
 				using (var client = new WebClient()) {
 					var dateTime = DateTime.UtcNow;
-					var targetDir = $"FilesBackup/{guildId}/{socketMessage.Channel.Name}/{dateTime.Year}/{dateTime.Month}/";
+					var targetDir = $"FilesBackup/{guildId}/{socketMessage.Channel.Name}/{dateTime.Year}/{dateTime.Month:00}/";
 					var fileName = Path.Combine(targetDir, attachment.Filename);
 					Directory.CreateDirectory(targetDir);
 					if (File.Exists(fileName)) {
@@ -175,7 +150,7 @@ namespace NyuBot {
 				}
 			}
 		}
-		
+
 		private async Task OnMessageUpdated(Cacheable<IMessage, ulong> cacheable, SocketMessage msg, ISocketMessageChannel channel) {
 			await this.MessageReceivedAsync(msg);
 		}
@@ -183,27 +158,36 @@ namespace NyuBot {
 		private async Task PrivateMessageReceivedAsync(SocketMessage socketMessage, IDMChannel dmChannel) {
 			Console.WriteLine($"Private message received from {socketMessage.Author}: {socketMessage.Content}");
 
-			if (socketMessage.Content.ToLower() == "ip") {
+			if (socketMessage.Content.ToLower() == ",ip") {
 				var ip = await this.GetBotPublicIp();
 				await dmChannel.SendMessageAsync($"Meu IP:```{ip}```");
+			}
+
+			var dm = await this._discord.GetDMChannelAsync(203373041063821313);
+			if (dm == null) return;
+			await dm.SendMessageAsync($"```{socketMessage.Author.Username} me mandou DM:```{socketMessage.Content}");
+			if (socketMessage.Attachments != null) {
+				foreach (var attachment in socketMessage.Attachments) {
+					await dm.SendFileAsync(attachment.Url, attachment.Filename);
+				}
 			}
 		}
 
 		#endregion <<---------- Callbacks ---------->>
 
 
-		
+
 
 		#region <<---------- Message Answer ---------->>
 
 		private async Task UserMessageReceivedAsync(SocketUserMessage userMessage) {
-			
+
 			// save this as last message
 			this._lastsSocketMessageOnChannels[userMessage.Channel.Id] = userMessage;
 
 
 			if (string.IsNullOrEmpty(userMessage.Content)) return;
-			
+
 			// Parameters
 			bool userSaidHerName = false;
 			bool isQuestion = false;
@@ -241,27 +225,36 @@ namespace NyuBot {
 			if (messageString.Length <= 0) {
 				return;
 			}
-			
+
 			#endregion <<---------- Setup message string to read ---------->>
 
 
 			#region <<---------- New Users Anti Spam ---------->>
 
-			if (messageString.Length > 140) {
-				if (userMessage.Author is SocketGuildUser guildUser) {
-					if (!guildUser.IsBot 
-						&& guildUser.JoinedAt.HasValue 
-						&& DateTimeOffset.UtcNow < guildUser.JoinedAt.Value.AddDays(1)) {
-						Console.WriteLine($"Deleting {guildUser.GetNameSafe()} message because this user is new on this guild.");
-						await userMessage.DeleteAsync();
-						return;
+			try {
+				if (messageString.Length > 140) {
+					if (userMessage.Author is SocketGuildUser guildUser) {
+						var json = await JsonCache.LoadValueAsync($"GuildSettings/{guildUser.Guild}", "enableNewUserAntiSpam");
+						if (json != null) {
+							bool antiSpamEnabled = json.AsBool;
+							if (antiSpamEnabled
+								&& !guildUser.IsBot
+								&& guildUser.JoinedAt.HasValue
+								&& DateTimeOffset.UtcNow < guildUser.JoinedAt.Value.AddDays(1)) {
+								await this._log.Info($"Deleting {guildUser.GetNameSafe()} message because this user is new on this guild.");
+								await userMessage.DeleteAsync();
+								return;
+							}
+						}
 					}
 				}
+			} catch (Exception e) {
+				Console.WriteLine(e);
 			}
-			
+
 			#endregion <<---------- New Users Anti Spam ---------->>
-			
-			
+
+
 			#region <<---------- User Specific ---------->>
 
 			// babies
@@ -277,7 +270,7 @@ namespace NyuBot {
 			} catch (Exception e) {
 				Console.WriteLine($"Exception trying to process babies answer: {e}");
 			}
-			
+
 			#endregion <<---------- User Specific ---------->>
 
 			#region Fast Answers
@@ -286,7 +279,7 @@ namespace NyuBot {
 				await this.SetUserIsSleeping(userMessage);
 				return;
 			}
-			
+
 			if (messageString == ("ping")) {
 				await userMessage.Channel.SendMessageAsync("pong");
 				return;
@@ -342,8 +335,11 @@ namespace NyuBot {
 				|| messageString == "dae"
 				|| messageString == "oi galera"
 				|| messageString == "dae galera"
+				|| messageString == "opa"
 			) {
-				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] {"Oi.", "Olá.", "Hello.", "Coé.", "Oin.", "Aoba."}));
+				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] {
+					"oi", "olá", "hello", "coé", "oin", "aoba", "fala tu", "manda a braba", "opa"
+				}));
 				return;
 			}
 
@@ -359,7 +355,9 @@ namespace NyuBot {
 				|| messageString == "falous"
 				|| messageString.Contains(" flw")
 			) {
-				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] {"Tchau.", "Xiau.", "Bye bye.", "Flw."}));
+				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] {
+					"tchau", "xiau", "bye bye", "flw"
+				}));
 				return;
 			}
 
@@ -426,39 +424,34 @@ namespace NyuBot {
 			#region Memes
 			// Ahhh agora eu entendi
 			if (messageString.EndsWith("agora eu entendi")) {
-				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] {"Agora eu saqueeeeei!", "Agora tudo faz sentido!", "Eu estava cego agora estou enchergaaaando!", "Agora tudo vai mudar!", "Agora eu vou ficar de olhos abertos!"}));
+				await userMessage.Channel.SendMessageAsync(ChooseAnAnswer(new[] {
+					"Agora eu saqueeeeei!",
+					"Agora tudo faz sentido!",
+					"Eu estava cego agora estou enchergaaaando!",
+					"Agora tudo vai mudar!",
+					"Agora eu vou ficar de olhos abertos!"
+				}));
 				return;
 			}
-			
+
 			#endregion
 
 			#region General
-			
+
 			if (messageString == "alguem ai") {
 				await userMessage.Channel.SendMessageAsync("Eu");
 				return;
 			}
 
-			if (messageString.Contains("que horas sao")) {
+			if (messageString.Contains("que horas sao") 
+				|| messageString.Contains("que horas e") 
+				|| messageString.Contains("que horas que e") 
+				|| messageString.Contains("que horas q e")
+				) {
 				if (isQuestion) {
 					await userMessage.Channel.SendMessageAsync("É hora de acertar as contas...");
 					return;
 				}
-			}
-
-			// Disboard bump
-			if (messageString == "!d bump") {
-				this._bumpTimer?.Close();
-				this._bumpTimer = new System.Timers.Timer(120 * 60 * 1000);
-				var channel = userMessage.Channel;
-				var user = userMessage.Author;
-				await channel.SendMessageAsync($"{user.Mention} vou lembrar daqui a 2 horas pra dar bump de novo.");
-				this._bumpTimer.Elapsed += async (sender, args) => {
-					await channel.SendMessageAsync($"{user.Mention}\nJa da pra dar bump no server de novo! Mande essa mensagem aqui:\n```!d bump```");
-				};
-				this._bumpTimer.AutoReset = false;
-				this._bumpTimer.Start();
-				return;
 			}
 			
 			#endregion
@@ -484,21 +477,24 @@ namespace NyuBot {
 					|| messageString.StartsWith("¡ê")
 					|| messageString.StartsWith("◻◾")
 					)) {
-
-				var guild = this._discord.GetGuild(userMessage.Reference.GuildId.Value);
-				
-				// quarantine role
-				if (userMessage.Author is SocketGuildUser guildUser) {
-					var roleToAdd = guild.GetRole(474627963221049344);
-					if (roleToAdd != null) {
-						await guildUser.AddRoleAsync(roleToAdd);
-					}
-				}
 				
 				await userMessage.DeleteAsync();
-				var msg = $"{MentionUtils.MentionUser(guild.OwnerId)} o {MentionUtils.MentionUser(userMessage.Author.Id)} enviou uma mensagem suspeita...";
-				await userMessage.Channel.SendMessageAsync(msg);
-				return;
+
+				if (userMessage.Channel is SocketGuildChannel guildChannel) {
+					var guild = this._discord.GetGuild(guildChannel.Guild.Id);
+				
+					// quarantine role
+					if (userMessage.Author is SocketGuildUser guildUser) {
+						var roleToAdd = guild.GetRole(474627963221049344);
+						if (roleToAdd != null) {
+							await guildUser.AddRoleAsync(roleToAdd);
+						}
+					}
+				
+					var msg = $"{MentionUtils.MentionUser(guild.OwnerId)} o {MentionUtils.MentionUser(userMessage.Author.Id)} enviou uma mensagem suspeita...";
+					await userMessage.Channel.SendMessageAsync(msg);
+				}
+				return; // return because spam message is delete and not any more threatment is required
 			}
 			
 			#endregion <<---------- Anti trava discord ---------->>
@@ -549,7 +545,7 @@ namespace NyuBot {
 			// if arrived here, the message has no answer.
 		}
 
-		private async Task BotMessageReceivedAsync(SocketUserMessage userMessage) {
+		private async Task BotMessageReceivedAsync(SocketUserMessage botMessage) {
 			
 		}
 		
@@ -578,48 +574,6 @@ namespace NyuBot {
 				if (this._discord == null) return;
 				await this._discord.SetGameAsync(statusText, null, ActivityType.Watching);
 			}
-		}
-		
-		private async Task UserLeavedGuild(SocketUser socketUser, SocketGuild socketGuild, string sufixMsg) {
-			var channel = socketGuild.SystemChannel;
-			if (channel == null) return;
-			
-			var jsonArray = (await JsonCache.LoadValueAsync("Answers/UserLeave", "data")).AsArray;
-			string customAnswer = null;
-			if (jsonArray != null) {
-				customAnswer = jsonArray[this._rand.Next(0, jsonArray.Count)].Value;
-			}
-			
-			var embed = new EmbedBuilder {
-				Description = $"Temos {socketGuild.MemberCount} membros agora.",
-				Color = Color.Red
-			};
-			
-			var title = new StringBuilder();
-			title.Append($"{socketUser.Username}#{socketUser.DiscriminatorValue}");
-			title.Append($"{sufixMsg}");
-
-			embed.Title = title.ToString();
-			
-			var sendMsg = await channel.SendMessageAsync(customAnswer, false, embed.Build());
-			
-			// just leaved guild
-			if (socketUser is SocketGuildUser socketGuildUser) {
-				title.Append($"{(socketGuildUser.Nickname != null ? $" ({socketGuildUser.Nickname})" : null)}");
-
-				if (socketGuildUser.JoinedAt.HasValue) {
-					embed.Footer = new EmbedFooterBuilder {
-						Text = $"Membro desde {socketGuildUser.JoinedAt.Value.ToString("dd/MM/yy hh tt")}"
-					};
-				}
-			}
-			else {
-				// was banned
-				var guildOwner = socketGuild.Owner;
-				await guildOwner.SendMessageAsync($"Banido do servidor {socketGuild.Name}", false, embed.Build());
-			}
-			
-			await sendMsg.AddReactionAsync(new Emoji(":regional_indicator_f:"));
 		}
 		
 		#endregion <<---------- User ---------->>
@@ -683,7 +637,9 @@ namespace NyuBot {
 			var newName = day ? "Nyu" : "Lucy";
 			foreach (var guild in this._discord.Guilds) {
 				if (guild.CurrentUser.Nickname == newName) continue;
-				await guild.CurrentUser.ModifyAsync(p => p.Nickname = newName);
+				if (guild.CurrentUser.GuildPermissions.ChangeNickname) {
+					await guild.CurrentUser.ModifyAsync(p => p.Nickname = newName);
+				}
 			}
 
 		}
