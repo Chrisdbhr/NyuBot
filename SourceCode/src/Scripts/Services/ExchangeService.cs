@@ -67,7 +67,7 @@ namespace NyuBot {
 				// https://free.currconv.com/api/v7/convert?q=USD_BRL&compact=ultra&apiKey=82e456034f1bb5418116
 				var client = new RestClient($"https://free.currconv.com/api/v7/convert?q=USD_BRL&compact=ultra&apiKey={apiKey}");
 				var request = new RestRequest(Method.GET);
-				var timeline = await client.ExecuteAsync(request, CancellationToken.None);
+				var timeline = await client.ExecuteAsync(request);
 
 				if (!string.IsNullOrEmpty(timeline.ErrorMessage)) {
 					Console.WriteLine($"Error trying to get exchangeJson: {timeline.ErrorMessage}");

@@ -14,6 +14,7 @@ using Discord.Commands;
 using Discord.Rest;
 using Discord.WebSocket;
 using HtmlAgilityPack;
+using Microsoft.Extensions.Configuration;
 using RestSharp;
 using SimpleJSON;
 
@@ -24,7 +25,7 @@ namespace NyuBot {
 
 		#region <<---------- Initializers ---------->>
 
-		public ChatService(DiscordSocketClient discord, CommandService commands, AudioService audioService, LoggingService loggingService) {
+		public ChatService(DiscordSocketClient discord, CommandService commands, AudioService audioService, LoggingService loggingService, IConfigurationRoot configurationRoot) {
 			this._disposable?.Dispose();
 			this._disposable = new CompositeDisposable();
 
@@ -33,6 +34,7 @@ namespace NyuBot {
 			this._commands = commands;
 			this._audioService = audioService;
 			this._log = loggingService;
+			this._config = configurationRoot;
 
 			this._discord.MessageReceived += this.MessageReceivedAsync;
 			this._discord.MessageReceived += this.MessageWithAttachment;
@@ -80,6 +82,7 @@ namespace NyuBot {
 		private readonly CommandService _commands;
 		private readonly AudioService _audioService;
 		private readonly LoggingService _log;
+		private readonly IConfigurationRoot _config;
 		private readonly Random _rand = new Random();
 
 		private System.Timers.Timer _bumpTimer;
@@ -140,7 +143,7 @@ namespace NyuBot {
 			foreach (var attachment in socketMessage.Attachments) {
 				using (var client = new WebClient()) {
 					var dateTime = DateTime.UtcNow;
-					var targetDir = $"FilesBackup/{guildId}/{socketMessage.Channel.Name}/{dateTime.Year}/{dateTime.Month:00}/";
+					var targetDir = $"../FilesBackup/{guildId}/{socketMessage.Channel.Name}/{dateTime.Year}/{dateTime.Month:00}/";
 					var fileName = Path.Combine(targetDir, attachment.Filename);
 					Directory.CreateDirectory(targetDir);
 					if (File.Exists(fileName)) {
@@ -599,7 +602,7 @@ namespace NyuBot {
 		private async Task<string> GetBotPublicIp() {
 			var client = new RestClient("http://ipinfo.io/ip");
 			var request = new RestRequest(Method.GET);
-			var timeline = await client.ExecuteAsync(request, CancellationToken.None);
+			var timeline = await client.ExecuteAsync(request);
 
 			if (!string.IsNullOrEmpty(timeline.ErrorMessage)) {
 				Console.WriteLine($"Error trying to get bot IP: {timeline.ErrorMessage}");
@@ -631,7 +634,7 @@ namespace NyuBot {
 					await this._discord.CurrentUser.ModifyAsync(p => p.Avatar = image);
 				}
 			} catch (Exception e) {
-				Console.WriteLine(e);
+				Console.WriteLine($"Error trying to modify bot own profile pic: {e.Message.CSubstring(0,32)}");
 			}
 
 			var newName = day ? "Nyu" : "Lucy";
@@ -705,7 +708,7 @@ namespace NyuBot {
 				// try {
 				// 	var client = new RestClient("https://picsum.photos/96");
 				// 	var request = new RestRequest(Method.GET);
-				// 	var timeline = await client.ExecuteAsync(request, CancellationToken.None);
+				// 	var timeline = await client.ExecuteAsync(request);
 				// 	if (!string.IsNullOrEmpty(timeline.ResponseUri.OriginalString)) {
 				// 		embed.ThumbnailUrl = timeline.ResponseUri.OriginalString;
 				// 		await msgSend.ModifyAsync(p => p.Embed = embed.Build());
@@ -725,7 +728,7 @@ namespace NyuBot {
 		private async Task<string> GetRandomMotivationPhrase() {
 			var client = new RestClient("https://www.pensador.com/frases");
 			var request = new RestRequest(Method.GET);
-			var timeline = await client.ExecuteAsync(request, CancellationToken.None);
+			var timeline = await client.ExecuteAsync(request);
 
 			if (!string.IsNullOrEmpty(timeline.ErrorMessage) || string.IsNullOrEmpty(timeline.Content)) {
 				Console.WriteLine($"Error trying Random Motivation Phrase: {timeline.ErrorMessage}");

@@ -46,7 +46,7 @@ namespace NyuBot.Modules {
 				// api.openweathermap.org/data/2.5/weather?q={city name}&appid={API key}
 				var client = new RestClient($"https://api.openweathermap.org/data/2.5/weather?q={locationEncoded}&appid={apiKey}");
 				var request = new RestRequest(Method.GET);
-				var timeline = await client.ExecuteAsync(request, CancellationToken.None);
+				var timeline = await client.ExecuteAsync(request);
 
 				if (!string.IsNullOrEmpty(timeline.ErrorMessage)) {
 					Console.WriteLine($"Error trying to get weather for '{locationEncoded}': {timeline.ErrorMessage}");
