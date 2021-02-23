@@ -7,11 +7,11 @@ using System.Reactive.Disposables;
 using System.Threading;
 using System.Threading.Tasks;
 using Discord;
-using Discord.Audio;
 using Discord.WebSocket;
 using Lavalink4NET;
 using Lavalink4NET.Player;
 using Lavalink4NET.Rest;
+using NyuBot.Extensions;
 using RestSharp;
 
 namespace NyuBot {
@@ -27,7 +27,11 @@ namespace NyuBot {
 			this._log = loggingService;
 			this._audioService = audioService;
 
-			this._discord.Ready += () => this._audioService.InitializeAsync();
+			try {
+				this._discord.Ready += () => this._audioService.InitializeAsync();
+			} catch (Exception e) {
+				this._log.Error(e.ToString()).CAwait();
+			}
 		}
 
 		#endregion <<---------- Initializers ---------->>

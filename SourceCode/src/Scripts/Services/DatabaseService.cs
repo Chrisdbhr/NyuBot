@@ -10,6 +10,7 @@ namespace NyuBot {
 		public readonly MongoClient dbClient;
 		
 		public DatabaseService(IConfigurationRoot config) {
+			return;
 			this.dbClient = new MongoClient(config[@"db-connection-string"]);
 			var database = this.dbClient.GetDatabase ("db0");
 			this.InsertSampleData(database).CAwait();
