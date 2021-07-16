@@ -7,7 +7,6 @@ using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using NyuBot.Extensions;
-using SimpleJSON;
 
 namespace NyuBot.HungerGames {
 	public class HungerGameService : IDisposable {
@@ -16,6 +15,8 @@ namespace NyuBot.HungerGames {
 		
 		private readonly DiscordSocketClient _discord;
 		private readonly TimeSpan _timeToWaitEachMessage = TimeSpan.FromSeconds(5);
+		
+		public List<ulong> PlayingChannels = new List<ulong>();
 
 		#endregion <<---------- Properties ---------->>
 
@@ -85,19 +86,9 @@ namespace NyuBot.HungerGames {
 			embed.WithFooter($"Hunger Games & Battle Royale Simulation - © CHRISdbhr", "https://chrisdbhr.github.io/images/avatar.png");
 
 			await context.Channel.SendMessageAsync(string.Empty, false, embed.Build());
-			
-			// save that match is running
-			var json = await JsonCache.LoadJsonAsync($"{JKEY_CHANNEL_MATCHS_INFO_PREFIX}{context.Channel}") ?? new JSONObject();
-			json["matchInProgress"] = true;
-			await JsonCache.SaveJsonAsync($"{JKEY_CHANNEL_MATCHS_INFO_PREFIX}{context.Channel}", json);
-			
+		
 			// game task
 			await this.ProcessTurn(context, characters);
-			
-			// game finished
-			json = await JsonCache.LoadJsonAsync($"{JKEY_CHANNEL_MATCHS_INFO_PREFIX}{context.Channel}");
-			if (json == null) return;
-			json["matchInProgress"] = false;
 		}
 
 		private async Task ProcessTurn(SocketCommandContext context, IReadOnlyCollection<Character> allCharacters) {
@@ -111,8 +102,7 @@ namespace NyuBot.HungerGames {
 				EmbedBuilder embed;
 	
 				// is game canceled?
-				var matchJson = await JsonCache.LoadJsonAsync($"{JKEY_CHANNEL_MATCHS_INFO_PREFIX}{context.Channel}");
-				if (matchJson != null && matchJson["matchInProgress"] == false) {
+				if (!this.PlayingChannels.Contains(context.Channel.Id)) {
 					embed = new EmbedBuilder {
 						Color = Color.Orange,
 						Title = $"Jogo cancelado"
