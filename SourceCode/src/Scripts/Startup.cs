@@ -33,10 +33,10 @@ namespace NyuBot {
 
             this._serviceProvider = services.BuildServiceProvider();     // Build the service provider
             
-            this._serviceProvider.GetRequiredService<LoggingService>();      // Start the logging service
-            this._serviceProvider.GetRequiredService<CommandHandler>(); 		// Start the command handler service
-            this._serviceProvider.GetRequiredService<AudioService>(); 		// Start the chat service handler
-            this._serviceProvider.GetRequiredService<ChatService>(); 		// Start the chat service handler
+            this._serviceProvider.GetRequiredService<LoggingService>();
+            this._serviceProvider.GetRequiredService<CommandHandler>();
+            this._serviceProvider.GetRequiredService<AudioService>(); 
+            this._serviceProvider.GetRequiredService<ChatService>(); 
             this._serviceProvider.GetRequiredService<HungerGameService>();
             this._serviceProvider.GetRequiredService<VoiceService>();
             this._serviceProvider.GetRequiredService<ExchangeService>();
@@ -45,6 +45,7 @@ namespace NyuBot {
             this._serviceProvider.GetRequiredService<AutoReactService>();
             this._serviceProvider.GetRequiredService<IAudioService>();
             this._serviceProvider.GetRequiredService<DatabaseService>();
+            this._serviceProvider.GetRequiredService<SleepService>();
             
             await this._serviceProvider.GetRequiredService<StartupService>().StartAsync();       // Start the startup service
             await Task.Delay(-1);                               // Keep the program alive
@@ -61,14 +62,14 @@ namespace NyuBot {
                 LogLevel = LogSeverity.Verbose,     // Tell the logger to give Verbose amount of info
                 DefaultRunMode = RunMode.Async,     // Force all commands to run async by default
             }))
-            .AddSingleton<CommandHandler>()         // Add the command handler to the collection
-            .AddSingleton<StartupService>()         // Add startupservice to the collection
-            .AddSingleton<LoggingService>()         // Add loggingservice to the collection
-            .AddSingleton<Random>()                 // Add random to the collection
-            .AddSingleton<AudioService>()           // Add audio service to collection
-            .AddSingleton<VoiceService>()           // Add audio service to collection
-            .AddSingleton<ExchangeService>()           // Add audio service to collection
-            .AddSingleton<ChatService>()            // Add chat service to collection
+            .AddSingleton<CommandHandler>() 
+            .AddSingleton<StartupService>() 
+            .AddSingleton<LoggingService>() 
+            .AddSingleton<Random>()         
+            .AddSingleton<AudioService>()   
+            .AddSingleton<VoiceService>()   
+            .AddSingleton<ExchangeService>()
+            .AddSingleton<ChatService>()    
             .AddSingleton<HungerGameService>()
             .AddSingleton<WeatherService>()
             .AddSingleton<JoinAndLeaveService>()
@@ -83,6 +84,7 @@ namespace NyuBot {
                 DisconnectOnStop = false
             })
             .AddSingleton<DatabaseService>()
+            .AddSingleton<SleepService>()
             .AddSingleton(this.Configuration);      // Add the configuration to the collection
         }
 
