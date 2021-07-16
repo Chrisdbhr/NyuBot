@@ -6,8 +6,8 @@ using System.Linq;
 using System.Net;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using System.Reflection;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
@@ -16,7 +16,6 @@ using Discord.WebSocket;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Configuration;
 using RestSharp;
-using SimpleJSON;
 
 using NyuBot.Extensions;
 
@@ -41,17 +40,11 @@ namespace NyuBot {
 			this._discord.MessageDeleted += this.MessageDeletedAsync;
 			this._discord.MessageUpdated += this.OnMessageUpdated;
 
-			this._discord.UserVoiceStateUpdated += async (user, oldState, newState) => {
-				if (!(user is SocketGuildUser socketGuildUser)) return;
-				if (oldState.VoiceChannel == null && newState.VoiceChannel != null) {
-					await this.InformUserWakeUp(socketGuildUser);
-				}
-			};
-
-
 			// first triggers
 			Observable.Timer(TimeSpan.FromSeconds(5)).Subscribe(async _ => {
-				await this.SetStatusAsync();
+				// status
+				await this._discord.SetGameAsync(Assembly.GetExecutingAssembly().ImageRuntimeVersion);
+
 				await this.DayNightImgAndName();
 				await this.HourlyMessage();
 			}).AddTo(this._disposable);
@@ -107,33 +100,14 @@ namespace NyuBot {
 				return;
 			}
 
-			// normal msg
-			switch (userMessage.Source) {
-				case MessageSource.System:
-					break;
-				case MessageSource.User:
-					await this.UserMessageReceivedAsync(userMessage);
-
-					// check user sleeping
-					if (userMessage.Content?.ToLower().Replace(" ", string.Empty) == "amimir") {
-						await this.SetUserIsSleeping(userMessage);
-					}
-					else {
-						await this.InformUserWakeUp(userMessage.Author as SocketGuildUser);
-					}
-					break;
-				case MessageSource.Bot:
-					await this.BotMessageReceivedAsync(userMessage);
-					break;
-				case MessageSource.Webhook:
-					break;
-			}
+			if (userMessage.Source != MessageSource.User) return;
+			await this.UserMessageReceivedAsync(userMessage);
 		}
 
 		private async Task MessageDeletedAsync(Cacheable<IMessage, ulong> cacheable, ISocketMessageChannel socketMessageChannel) {
 			if (!cacheable.HasValue) return;
 			var message = cacheable.Value;
-			Console.WriteLine($"[MessageDeleted] from {message.Author.Username} in {socketMessageChannel.Name}: '{message.Content}'");
+			await this._log.Warning($"[MessageDeleted] from {message.Author.Username} in {socketMessageChannel.Name}: '{message.Content}'");
 		}
 
 		private async Task MessageWithAttachment(SocketMessage socketMessage) {
@@ -159,7 +133,7 @@ namespace NyuBot {
 		}
 
 		private async Task PrivateMessageReceivedAsync(SocketMessage socketMessage, IDMChannel dmChannel) {
-			Console.WriteLine($"Private message received from {socketMessage.Author}: {socketMessage.Content}");
+			await this._log.Info($"Private message received from {socketMessage.Author}: {socketMessage.Content}");
 
 			if (socketMessage.Content.ToLower() == ",ip") {
 				var ip = await this.GetBotPublicIp();
@@ -243,8 +217,8 @@ namespace NyuBot {
 							if (antiSpamEnabled
 								&& !guildUser.IsBot
 								&& guildUser.JoinedAt.HasValue
-								&& DateTimeOffset.UtcNow < guildUser.JoinedAt.Value.AddDays(1)) {
-								await this._log.Info($"Deleting {guildUser.GetNameSafe()} message because this user is new on this guild.");
+								&& DateTimeOffset.UtcNow < guildUser.JoinedAt.Value.AddDays(7)) {
+								await this._log.Warning($"Deleting {guildUser.GetNameSafe()} message because this user is new on this guild.");
 								await userMessage.DeleteAsync();
 								return;
 							}
@@ -252,7 +226,7 @@ namespace NyuBot {
 					}
 				}
 			} catch (Exception e) {
-				Console.WriteLine(e);
+				await this._log.Error(e.ToString());
 			}
 
 			#endregion <<---------- New Users Anti Spam ---------->>
@@ -271,17 +245,12 @@ namespace NyuBot {
 					break;
 				}
 			} catch (Exception e) {
-				Console.WriteLine($"Exception trying to process babies answer: {e}");
+				await this._log.Error($"Exception trying to process babies answer: {e.ToString()}");
 			}
 
 			#endregion <<---------- User Specific ---------->>
 
 			#region Fast Answers
-
-			if (messageString == "a mimir") {
-				await this.SetUserIsSleeping(userMessage);
-				return;
-			}
 
 			if (messageString == ("ping")) {
 				await userMessage.Channel.SendMessageAsync("pong");
@@ -547,10 +516,6 @@ namespace NyuBot {
 
 			// if arrived here, the message has no answer.
 		}
-
-		private async Task BotMessageReceivedAsync(SocketUserMessage botMessage) {
-			
-		}
 		
 		#endregion <<---------- Message Answer ---------->>
 		
@@ -560,7 +525,7 @@ namespace NyuBot {
 		#region <<---------- User ---------->>
 		
 		private async Task SetStatusAsync() {
-			var statusText = "chrisjogos.com";
+			var statusText = Program.VERSION;
 			try {
 				var activitiesJsonArray = (await JsonCache.LoadValueAsync("BotStatus", "activity")).AsArray;
 				var index = this._rand.Next(0, activitiesJsonArray.Count);
@@ -573,7 +538,7 @@ namespace NyuBot {
 					);
 
 			} catch (Exception e) {
-				Console.WriteLine(e);
+				await this._log.Error(e.ToString());
 				if (this._discord == null) return;
 				await this._discord.SetGameAsync(statusText, null, ActivityType.Watching);
 			}
@@ -596,7 +561,7 @@ namespace NyuBot {
 			// ip changed
 			
 			json["lastIp"].Value = ip;
-			await JsonCache.SaveJsonAsync("Ip", json);
+			await JsonCache.SaveToJson("Ip", json);
 		}
 
 		private async Task<string> GetBotPublicIp() {
@@ -605,7 +570,7 @@ namespace NyuBot {
 			var timeline = await client.ExecuteAsync(request);
 
 			if (!string.IsNullOrEmpty(timeline.ErrorMessage)) {
-				Console.WriteLine($"Error trying to get bot IP: {timeline.ErrorMessage}");
+				await this._log.Error($"Error trying to get bot IP: {timeline.ErrorMessage}");
 				return null;
 			}
 			if (string.IsNullOrEmpty(timeline.Content)) return null;
@@ -634,7 +599,7 @@ namespace NyuBot {
 					await this._discord.CurrentUser.ModifyAsync(p => p.Avatar = image);
 				}
 			} catch (Exception e) {
-				Console.WriteLine($"Error trying to modify bot own profile pic: {e.Message.CSubstring(0,32)}");
+				await this._log.Error($"Error trying to modify bot own profile pic: {e.Message.SubstringSafe(32)}");
 			}
 
 			var newName = day ? "Nyu" : "Lucy";
@@ -654,69 +619,75 @@ namespace NyuBot {
 				this._audioService.PlaySoundByNameOnAllMostPopulatedAudioChannels("meianoite").CAwait();
 				return;
 			}
-			return;
 			
 			foreach (var guild in this._discord.Guilds) {
-				
-				string title = time.ToString("h tt", CultureInfo.InvariantCulture);
-				string msg = null;
-				switch (time.Hour) {
-					case 0:
-						title = "Meia noite, vão dormi";
-						msg = $"Horário oficial do óleo de macaco";
-						break;
-					case 12:
-						title = "Meio dia";
-						msg = $"Hora de comer *nhon nhon nhon*";
-						break;
-				}
-
-				var channel = guild.SystemChannel;
-				if (channel == null) continue;
-
-				if (channel.CachedMessages.Count <= 0) return;
-
-				var lastUserMsg = channel.CachedMessages.OrderBy(m => m.Timestamp).Last() as IUserMessage;
-
-				bool lastMsgIsFromThisBot = lastUserMsg != null && lastUserMsg.Author.Id == this._discord.CurrentUser.Id;
-
-				// motivation phrase
-				if (string.IsNullOrEmpty(msg)) {
-					msg = await this.GetRandomMotivationPhrase();
-				}
-				msg = string.IsNullOrEmpty(msg) ? "Hora agora" : $"*\"{msg}\"*";
-
-				var embed = new EmbedBuilder {
-					Title = title,
-					Description = msg
-				};
-
-
-				RestUserMessage msgSend = null;
-				if (lastMsgIsFromThisBot) {
-					if (lastUserMsg.MentionedUserIds.Count <= 0) {
-						await lastUserMsg.ModifyAsync(p =>
-								p.Embed = embed.Build()
-						);
+				try {
+					string title = time.ToString("h tt", CultureInfo.InvariantCulture);
+					string msg = null;
+					switch (time.Hour) {
+						case 0:
+							title = "Meia noite, vão dormi";
+							msg = $"Horário oficial do óleo de macaco";
+							break;
+						case 12:
+							title = "Meio dia";
+							msg = $"Hora de comer *nhon nhon nhon*";
+							break;
 					}
-				}
-				else {
-					msgSend = await channel.SendMessageAsync(string.Empty, false, embed.Build());
+
+					var json = await JsonCache.LoadValueAsync($"GuildSettings/{guild.Id}", "channelHourlyMessage");
+					if (json == null) continue;
+					var channel = guild.GetTextChannel(Convert.ToUInt64(json.Value));
+					if (channel == null) continue;
+
+					if (channel.CachedMessages.Count <= 0) return;
+
+					var lastUserMsg = channel.CachedMessages.OrderBy(m => m.Timestamp).Last() as IUserMessage;
+
+					bool lastMsgIsFromThisBot = lastUserMsg != null && lastUserMsg.Author.Id == this._discord.CurrentUser.Id;
+
+					// motivation phrase
+					if (string.IsNullOrEmpty(msg)) {
+						msg = await this.GetRandomMotivationPhrase();
+					}
+					msg = string.IsNullOrEmpty(msg) ? "Hora agora" : $"*\"{msg}\"*";
+
+					var embed = new EmbedBuilder {
+						Title = title,
+						Description = msg
+					};
+
+
+					RestUserMessage msgSend = null;
+					if (lastMsgIsFromThisBot) {
+						if (lastUserMsg.MentionedUserIds.Count <= 0) {
+							await lastUserMsg.ModifyAsync(p =>
+									p.Embed = embed.Build()
+							);
+						}
+					}
+					else {
+						msgSend = await channel.SendMessageAsync(string.Empty, false, embed.Build());
+					}
+
+					// get random photo
+					try {
+						var client = new RestClient("https://picsum.photos/96");
+						var request = new RestRequest(Method.GET);
+						var timeline = await client.ExecuteAsync(request);
+						if (!string.IsNullOrEmpty(timeline.ResponseUri.OriginalString)) {
+							embed.ThumbnailUrl = timeline.ResponseUri.OriginalString;
+							await msgSend.ModifyAsync(p => p.Embed = embed.Build());
+						}
+					} catch (Exception e) {
+						await this._log.Error(e.ToString());
+					}
+
+				} catch (Exception e) {
+					await this._log.Error(e.ToString());
+					continue;
 				}
 
-				// // get random photo
-				// try {
-				// 	var client = new RestClient("https://picsum.photos/96");
-				// 	var request = new RestRequest(Method.GET);
-				// 	var timeline = await client.ExecuteAsync(request);
-				// 	if (!string.IsNullOrEmpty(timeline.ResponseUri.OriginalString)) {
-				// 		embed.ThumbnailUrl = timeline.ResponseUri.OriginalString;
-				// 		await msgSend.ModifyAsync(p => p.Embed = embed.Build());
-				// 	}
-				// } catch (Exception e) {
-				// 	Console.WriteLine(e);
-				// }
-				
 			}
 		}
 		
@@ -731,7 +702,7 @@ namespace NyuBot {
 			var timeline = await client.ExecuteAsync(request);
 
 			if (!string.IsNullOrEmpty(timeline.ErrorMessage) || string.IsNullOrEmpty(timeline.Content)) {
-				Console.WriteLine($"Error trying Random Motivation Phrase: {timeline.ErrorMessage}");
+				await this._log.Error($"Error trying Random Motivation Phrase: {timeline.ErrorMessage}");
 				return null;
 			}
 
@@ -751,57 +722,6 @@ namespace NyuBot {
 		#endregion <<---------- Pensador API ---------->>
 
 
-		
-
-		#region <<---------- A mimir ---------->>
-
-		private const string JSONPATH_USERSLEEPINFO = "SleepManagment/";
-		
-		private async Task SetUserIsSleeping(SocketUserMessage msg) {
-			var path = $"{JSONPATH_USERSLEEPINFO}{msg.Author.Id}";
-			if (!(msg.Author is SocketGuildUser author)) return;
-
-			var jsonNode = (await JsonCache.LoadJsonAsync(path)) ?? new JSONObject();
-			jsonNode["sleep-start-time"] = DateTime.UtcNow.AddHours(-3).Ticks.ToString();
-			
-			jsonNode["isSleeping"] = true;
-			
-			await JsonCache.SaveJsonAsync(path, jsonNode);
-			await msg.AddReactionAsync(new Emoji("💤"));
-		}
-
-		private async Task InformUserWakeUp(SocketGuildUser user) {
-			if (user == null) return;
-			var path = $"{JSONPATH_USERSLEEPINFO}{user.Id}";
-			
-			var jsonNode = (await JsonCache.LoadJsonAsync(path)) ?? new JSONObject();
-			
-			if (!jsonNode["isSleeping"].AsBool) return;
-			
-			var value = jsonNode["sleep-start-time"].Value;
-			var sleepTime = new DateTime(Convert.ToInt64(value));
-			var totalSleepTime = DateTime.UtcNow.AddHours(-3) - sleepTime;
-			
-			var embed = new EmbedBuilder {
-				Title = $"Parece que {user.GetNameSafe()} acordou",
-				Description = $"{user.Mention} dormiu um total de: {totalSleepTime.ToString(@"hh\:mm")}"
-			};
-			embed.Color = Color.LightOrange;
-			
-			embed.AddField(new EmbedFieldBuilder {
-				Name = "Horas que foi a mimir",
-				Value = sleepTime.ToString(@"hh\:mm tt")
-			});
-
-			jsonNode["isSleeping"] = false;
-			
-			await JsonCache.SaveJsonAsync(path, jsonNode);
-			await user.Guild.SystemChannel.SendMessageAsync(string.Empty, false, embed.Build());
-		}
-		
-		#endregion <<---------- A mimir ---------->>
-		
-		
 		
 
 		#region <<---------- String Threatment ---------->>

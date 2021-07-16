@@ -83,7 +83,7 @@ namespace NyuBot {
 
 				exchangeJson["cacheTime"] = (DateTime.UtcNow - TimeSpan.FromHours(3)).ToString("hh:mm:ss tt");
 				
-				await JsonCache.SaveJsonAsync(JPATH_EXCHANGEINFO, exchangeJson);
+				await JsonCache.SaveToJson(JPATH_EXCHANGEINFO, exchangeJson);
 			}
 
 			var currencyValue = exchangeJson[JKEY_USD_BRL].AsFloat;

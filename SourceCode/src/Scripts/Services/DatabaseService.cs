@@ -1,19 +1,19 @@
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using NyuBot.Extensions;
 
 namespace NyuBot {
 	public class DatabaseService {
 
-		public readonly MongoClient dbClient;
+		private readonly MongoClient _dbClient;
+		private readonly IMongoDatabase _database;
+		
 		
 		public DatabaseService(IConfigurationRoot config) {
-			return;
-			this.dbClient = new MongoClient(config[@"db-connection-string"]);
-			var database = this.dbClient.GetDatabase ("db0");
-			this.InsertSampleData(database).CAwait();
+			this._dbClient = new MongoClient(config[@"db-connection-string"]);
+			this._database = this._dbClient.GetDatabase ("db0");
 		}
 
 		private async Task InsertSampleData(IMongoDatabase db) {
@@ -30,6 +30,24 @@ namespace NyuBot {
 			};
 			await collection.InsertOneAsync(document);
 		}
+
+		public async Task InsertData(string collectionName, BsonDocument data){
+			var collection = this._database.GetCollection<BsonDocument> (collectionName);
+			await collection.InsertOneAsync(data);
+		}
+
+		public async Task<BsonDocument> GetData(string collectionName, FilterDefinition<BsonDocument> filter) {
+			var collection = this._database.GetCollection<BsonDocument> (collectionName);
+			return await collection.Find(filter).FirstOrDefaultAsync();
+		}
+
+		public async Task<UpdateResult> UpdateData(string collectionName, FilterDefinition<BsonDocument> filter, UpdateDefinition<BsonDocument> update) {
+			var collection = this._database.GetCollection<BsonDocument> (collectionName);
+			return await collection.UpdateOneAsync(filter, update, new UpdateOptions {
+				IsUpsert = true
+			});
+		}
+
 		
 	}
 }

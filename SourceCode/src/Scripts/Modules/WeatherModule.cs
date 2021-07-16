@@ -62,7 +62,7 @@ namespace NyuBot.Modules {
 
 				weatherJson["cacheTime"] = (DateTime.UtcNow - TimeSpan.FromHours(3)).ToString("hh:mm:ss tt");
 				
-				await JsonCache.SaveJsonAsync($"WeatherInfo/{location}", weatherJson);
+				await JsonCache.SaveToJson($"WeatherInfo/{location}", weatherJson);
 			}
 			
 			var currentCelsius = weatherJson["main"]["temp"].AsFloat - 273.15f; // kelvin to celsius

@@ -17,7 +17,7 @@ namespace NyuBot.Modules {
 			}
 			
 			jsonNode["joinChannelId"] = textChannel?.Id.ToString() ?? string.Empty;
-			await JsonCache.SaveJsonAsync(path, jsonNode);
+			await JsonCache.SaveToJson(path, jsonNode);
 
 
 			var embed = new EmbedBuilder();
@@ -42,7 +42,7 @@ namespace NyuBot.Modules {
 			}
 			
 			jsonNode["leaveChannelId"] = textChannel?.Id.ToString() ?? string.Empty;
-			await JsonCache.SaveJsonAsync(path, jsonNode);
+			await JsonCache.SaveToJson(path, jsonNode);
 
 
 			var embed = new EmbedBuilder();

@@ -258,10 +258,10 @@ namespace NyuBot.Modules {
             int numberChanged = 0;
             foreach (var textChannel in this.Context.Guild.TextChannels) {
                 var nameSplited = textChannel.Name.Split('-');
-                Console.WriteLine($"Vendo canal {textChannel.Name}");
+                await this._log.Info($"Vendo canal {textChannel.Name}");
                 foreach (var name in nameSplited) {
                     if (int.TryParse(name, out _)) {
-                        Console.WriteLine($"Canal {textChannel.Name}");
+                        await this._log.Info($"Canal {textChannel.Name}");
                         numberChanged += 1;
                         await textChannel.AddPermissionOverwriteAsync(this.Context.Guild.EveryoneRole, new OverwritePermissions(
                             PermValue.Inherit,

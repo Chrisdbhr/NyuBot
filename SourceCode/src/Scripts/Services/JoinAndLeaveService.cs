@@ -70,7 +70,7 @@ namespace NyuBot {
 			};
 			
 			var title = new StringBuilder();
-			title.Append($"{socketUser.Username}#{socketUser.DiscriminatorValue}");
+			title.Append($"{socketUser.Username}#{socketUser.DiscriminatorValue:0000}");
 			title.Append($"{sufixMsg}");
 
 			embed.Title = title.ToString();
