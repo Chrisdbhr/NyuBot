@@ -8,6 +8,7 @@ using Lavalink4NET.DiscordNet;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NyuBot.HungerGames;
+using NyuBot.Twitter;
 
 namespace NyuBot {
     public class Startup : IDisposable {
@@ -33,6 +34,7 @@ namespace NyuBot {
 
             this._serviceProvider = services.BuildServiceProvider();     // Build the service provider
             
+            this._serviceProvider.GetRequiredService<GuildSettingsService>();
             this._serviceProvider.GetRequiredService<LoggingService>();
             this._serviceProvider.GetRequiredService<CommandHandler>();
             this._serviceProvider.GetRequiredService<AudioService>(); 
@@ -40,9 +42,10 @@ namespace NyuBot {
             this._serviceProvider.GetRequiredService<HungerGameService>();
             this._serviceProvider.GetRequiredService<VoiceService>();
             this._serviceProvider.GetRequiredService<ExchangeService>();
-            this._serviceProvider.GetRequiredService<JoinAndLeaveService>();
+            this._serviceProvider.GetRequiredService<BackupService>();
             this._serviceProvider.GetRequiredService<ModeratorService>();
             this._serviceProvider.GetRequiredService<AutoReactService>();
+            this._serviceProvider.GetRequiredService<TwitterService>();
             this._serviceProvider.GetRequiredService<IAudioService>();
             this._serviceProvider.GetRequiredService<DatabaseService>();
             this._serviceProvider.GetRequiredService<SleepService>();
@@ -62,9 +65,10 @@ namespace NyuBot {
                 LogLevel = LogSeverity.Verbose,     // Tell the logger to give Verbose amount of info
                 DefaultRunMode = RunMode.Async,     // Force all commands to run async by default
             }))
+            .AddSingleton<GuildSettingsService>()
+            .AddSingleton<LoggingService>() 
             .AddSingleton<CommandHandler>() 
             .AddSingleton<StartupService>() 
-            .AddSingleton<LoggingService>() 
             .AddSingleton<Random>()         
             .AddSingleton<AudioService>()   
             .AddSingleton<VoiceService>()   
@@ -72,9 +76,10 @@ namespace NyuBot {
             .AddSingleton<ChatService>()    
             .AddSingleton<HungerGameService>()
             .AddSingleton<WeatherService>()
-            .AddSingleton<JoinAndLeaveService>()
+            .AddSingleton<BackupService>()
             .AddSingleton<ModeratorService>()
             .AddSingleton<AutoReactService>()
+            .AddSingleton<TwitterService>()
             .AddSingleton<IAudioService, LavalinkNode>()
             .AddSingleton<IDiscordClientWrapper, DiscordClientWrapper>()
             .AddSingleton(new LavalinkNodeOptions {

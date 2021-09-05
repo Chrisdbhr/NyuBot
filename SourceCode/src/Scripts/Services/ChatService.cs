@@ -15,6 +15,8 @@ using Discord.Rest;
 using Discord.WebSocket;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using RestSharp;
 
 using NyuBot.Extensions;
@@ -24,7 +26,7 @@ namespace NyuBot {
 
 		#region <<---------- Initializers ---------->>
 
-		public ChatService(DiscordSocketClient discord, CommandService commands, AudioService audioService, LoggingService loggingService, IConfigurationRoot configurationRoot) {
+		public ChatService(DiscordSocketClient discord, CommandService commands, AudioService audioService, LoggingService loggingService, IConfigurationRoot configurationRoot, GuildSettingsService guildSettings) {
 			this._disposable?.Dispose();
 			this._disposable = new CompositeDisposable();
 
@@ -34,9 +36,9 @@ namespace NyuBot {
 			this._audioService = audioService;
 			this._log = loggingService;
 			this._config = configurationRoot;
+			this._guildSettings = guildSettings;
 
 			this._discord.MessageReceived += this.MessageReceivedAsync;
-			this._discord.MessageReceived += this.MessageWithAttachment;
 			this._discord.MessageDeleted += this.MessageDeletedAsync;
 			this._discord.MessageUpdated += this.OnMessageUpdated;
 
@@ -51,7 +53,7 @@ namespace NyuBot {
 
 
 			// status
-			Observable.Timer(TimeSpan.FromMinutes(30)).Repeat().Subscribe(async _ => { await this.SetStatusAsync(); }).AddTo(this._disposable);
+			Observable.Timer(TimeSpan.FromMinutes(30)).Repeat().Subscribe(async _ => { await this.UpdateSelfStatusAsync(); }).AddTo(this._disposable);
 
 			// check for bot ip change
 			Observable.Timer(TimeSpan.FromMinutes(10)).Repeat().Subscribe(async _ => { await this.CheckForBotPublicIp(); }).AddTo(this._disposable);
@@ -76,10 +78,11 @@ namespace NyuBot {
 		private readonly AudioService _audioService;
 		private readonly LoggingService _log;
 		private readonly IConfigurationRoot _config;
-		private readonly Random _rand = new Random();
+		private readonly GuildSettingsService _guildSettings;
+		private readonly Random _rand = new();
+		private Dictionary<ulong, List<ulong>> LastMessagesIdsInChannel = new();
 
 		private System.Timers.Timer _bumpTimer;
-		private Dictionary<ulong, SocketMessage> _lastsSocketMessageOnChannels = new Dictionary<ulong, SocketMessage>();
 		private int _previousHour = -1;
 
 		private CompositeDisposable _disposable;
@@ -104,29 +107,13 @@ namespace NyuBot {
 			await this.UserMessageReceivedAsync(userMessage);
 		}
 
-		private async Task MessageDeletedAsync(Cacheable<IMessage, ulong> cacheable, ISocketMessageChannel socketMessageChannel) {
+		private async Task MessageDeletedAsync(Cacheable<IMessage, ulong> cacheable, Cacheable<IMessageChannel, ulong> cacheable1) {
 			if (!cacheable.HasValue) return;
 			var message = cacheable.Value;
-			await this._log.Warning($"[MessageDeleted] from {message.Author.Username} in {socketMessageChannel.Name}: '{message.Content}'");
+			await this._log.Warning($"[MessageDeleted] from {message.Author.Username}: '{message.Content}'");
 		}
 
-		private async Task MessageWithAttachment(SocketMessage socketMessage) {
-			if (!(socketMessage is SocketUserMessage userMsg)) return;
-			if (!(userMsg.Author is SocketGuildUser guildUser)) return;
-			var guildId = guildUser.Guild.Id;
-			foreach (var attachment in socketMessage.Attachments) {
-				using (var client = new WebClient()) {
-					var dateTime = DateTime.UtcNow;
-					var targetDir = $"../FilesBackup/{guildId}/{socketMessage.Channel.Name}/{dateTime.Year}/{dateTime.Month:00}/";
-					var fileName = Path.Combine(targetDir, attachment.Filename);
-					Directory.CreateDirectory(targetDir);
-					if (File.Exists(fileName)) {
-						fileName += $"_{dateTime.Ticks}";
-					}
-					await client.DownloadFileTaskAsync(new Uri(attachment.Url), fileName);
-				}
-			}
-		}
+		
 
 		private async Task OnMessageUpdated(Cacheable<IMessage, ulong> cacheable, SocketMessage msg, ISocketMessageChannel channel) {
 			await this.MessageReceivedAsync(msg);
@@ -158,10 +145,6 @@ namespace NyuBot {
 		#region <<---------- Message Answer ---------->>
 
 		private async Task UserMessageReceivedAsync(SocketUserMessage userMessage) {
-
-			// save this as last message
-			this._lastsSocketMessageOnChannels[userMessage.Channel.Id] = userMessage;
-
 
 			if (string.IsNullOrEmpty(userMessage.Content)) return;
 
@@ -211,17 +194,14 @@ namespace NyuBot {
 			try {
 				if (messageString.Length > 140) {
 					if (userMessage.Author is SocketGuildUser guildUser) {
-						var json = await JsonCache.LoadValueAsync($"GuildSettings/{guildUser.Guild}", "enableNewUserAntiSpam");
-						if (json != null) {
-							bool antiSpamEnabled = json.AsBool;
-							if (antiSpamEnabled
-								&& !guildUser.IsBot
-								&& guildUser.JoinedAt.HasValue
-								&& DateTimeOffset.UtcNow < guildUser.JoinedAt.Value.AddDays(7)) {
-								await this._log.Warning($"Deleting {guildUser.GetNameSafe()} message because this user is new on this guild.");
-								await userMessage.DeleteAsync();
-								return;
-							}
+						bool antiSpamEnabled = this._guildSettings.GetGuildSettings(guildUser.Guild.Id).EnableNewUserAntiSpam;
+						if (antiSpamEnabled
+							&& !guildUser.IsBot
+							&& guildUser.JoinedAt.HasValue
+							&& DateTimeOffset.UtcNow < guildUser.JoinedAt.Value.AddDays(7)) {
+							await this._log.Warning($"Deleting {guildUser.GetNameSafe()} message because this user is new on this guild.");
+							await userMessage.DeleteAsync();
+							return;
 						}
 					}
 				}
@@ -232,23 +212,23 @@ namespace NyuBot {
 			#endregion <<---------- New Users Anti Spam ---------->>
 
 
-			#region <<---------- User Specific ---------->>
-
-			// babies
-			try {
-				var jsonArray = (await JsonCache.LoadValueAsync("UsersBabies", "data")).AsArray;
-				for (int i = 0; i < jsonArray.Count; i++) {
-					var userId = jsonArray[i].Value;
-					if (string.IsNullOrEmpty(userId)) continue;
-					if (userMessage.Author.Id != Convert.ToUInt64(userId)) continue;
-					await userMessage.AddReactionAsync(new Emoji("😭"));
-					break;
-				}
-			} catch (Exception e) {
-				await this._log.Error($"Exception trying to process babies answer: {e.ToString()}");
-			}
-
-			#endregion <<---------- User Specific ---------->>
+			// #region <<---------- User Specific ---------->>
+			//
+			// // babies
+			// try {
+			// 	var jsonArray = (await JsonCache.LoadValueAsync("UsersBabies", "data")).AsArray;
+			// 	for (int i = 0; i < jsonArray.Count; i++) {
+			// 		var userId = jsonArray[i].Value;
+			// 		if (string.IsNullOrEmpty(userId)) continue;
+			// 		if (userMessage.Author.Id != Convert.ToUInt64(userId)) continue;
+			// 		await userMessage.AddReactionAsync(new Emoji("😭"));
+			// 		break;
+			// 	}
+			// } catch (Exception e) {
+			// 	await this._log.Error($"Exception trying to process babies answer: {e.ToString()}");
+			// }
+			//
+			// #endregion <<---------- User Specific ---------->>
 
 			#region Fast Answers
 
@@ -524,15 +504,16 @@ namespace NyuBot {
 
 		#region <<---------- User ---------->>
 		
-		private async Task SetStatusAsync() {
+		public async Task UpdateSelfStatusAsync() {
 			var statusText = Program.VERSION;
 			try {
-				var activitiesJsonArray = (await JsonCache.LoadValueAsync("BotStatus", "activity")).AsArray;
+				var activitiesJsonArray = JsonCache.LoadFromJson<JArray>("BotStatus");
 				var index = this._rand.Next(0, activitiesJsonArray.Count);
-				var statusTextArray = activitiesJsonArray[index]["answers"].AsArray;
-				var selectedStatus = statusTextArray[this._rand.Next(0, statusTextArray.Count)].Value;
+				var answers = activitiesJsonArray.ElementAt(index)["answers"];
+				var statusTextArray = answers;
+				var selectedStatus = statusTextArray[this._rand.Next(0, statusTextArray.Count())];
 				await this._discord.SetGameAsync(
-					selectedStatus, 
+					selectedStatus.Value<string>(), 
 					(ActivityType)index == ActivityType.Streaming ? "https://twitch.tv/chrisdbhr" : null, 
 					(ActivityType)index
 					);
@@ -554,14 +535,14 @@ namespace NyuBot {
 		private async Task CheckForBotPublicIp() {
 			var ip = await this.GetBotPublicIp();
 			
-			var json = await JsonCache.LoadJsonAsync("Ip") ?? new JSONObject {["lastIp"] = ""};
+			var json = JsonCache.LoadFromJson<JObject>("Ip");
 			
-			if (json["lastIp"].Value == ip) return;
+			if (json["lastIp"]?.Value<string>() == ip) return;
 
 			// ip changed
 			
-			json["lastIp"].Value = ip;
-			await JsonCache.SaveToJson("Ip", json);
+			json["lastIp"] = ip;
+			JsonCache.SaveToJson("Ip", json);
 		}
 
 		private async Task<string> GetBotPublicIp() {
@@ -635,9 +616,9 @@ namespace NyuBot {
 							break;
 					}
 
-					var json = await JsonCache.LoadValueAsync($"GuildSettings/{guild.Id}", "channelHourlyMessage");
-					if (json == null) continue;
-					var channel = guild.GetTextChannel(Convert.ToUInt64(json.Value));
+					if (this._guildSettings.GetGuildSettings(guild.Id).HourlyMessageChannelId == null) continue;
+					
+					var channel = guild.GetTextChannel(this._guildSettings.GetGuildSettings(guild.Id).HourlyMessageChannelId.Value);
 					if (channel == null) continue;
 
 					if (channel.CachedMessages.Count <= 0) return;
@@ -648,7 +629,7 @@ namespace NyuBot {
 
 					// motivation phrase
 					if (string.IsNullOrEmpty(msg)) {
-						msg = await this.GetRandomMotivationPhrase();
+						msg = (await this.GetRandomMotivationPhrase()).RandomElement();
 					}
 					msg = string.IsNullOrEmpty(msg) ? "Hora agora" : $"*\"{msg}\"*";
 
@@ -690,14 +671,125 @@ namespace NyuBot {
 
 			}
 		}
-		
 
+
+
+		#region <<---------- Chat Messages ---------->>
+
+		public async Task GetAndRepplyRememberMessage(SocketUserMessage msg, int amount, bool downloadIfNeeded) {
+			var emoji = new Emoji("⌚") ;
+			
+			await msg.AddReactionAsync(emoji);
+			
+			await this.UpdateMessagesCacheForChannel(msg.Channel, amount, downloadIfNeeded);
+			var channelId = msg.Channel.Id;
+			this.SerializeMessages(this.LastMessagesIdsInChannel[channelId], channelId.ToString());
+
+			var selectedMsg = await this.GetRandomUserMessageFromChannelCache(msg.Channel, 7);
+			if (selectedMsg == null) return;
+			if (selectedMsg is not IUserMessage userMsg) return;
+
+			var time = DateTime.UtcNow - selectedMsg.Timestamp;
+			
+			var embed = new EmbedBuilder {
+				Title = $"{time.TotalDays:0} dias atrás",
+				Description = selectedMsg.Content,
+				ThumbnailUrl = selectedMsg.Author.GetAvatarUrl() ?? selectedMsg.Author.GetDefaultAvatarUrl() 
+			};
+
+			await msg.RemoveAllReactionsForEmoteAsync(emoji);
+			await msg.AddReactionAsync(new Emoji("👇"));
+			await userMsg.ReplyAsync($"Lembrança de **{userMsg.Author.Mention}**",false,embed.Build(), AllowedMentions.None);
+		}
+		
+		public async Task UpdateMessagesCacheForChannel(ISocketMessageChannel channel, int ammount, bool downloadIfNeeded) {
+			var key = channel.Id;
+
+			if (!downloadIfNeeded && this.LastMessagesIdsInChannel.ContainsKey(key)) {
+				return;
+			}
+			
+			this.UpdateCachedMsgsIdForChannelFromLocal(channel.Id);
+			
+			if (!downloadIfNeeded) {
+				return;
+			}
+			
+			var allMsgs = channel.GetMessagesAsync(ammount).GetAsyncEnumerator();
+
+			while (await allMsgs.MoveNextAsync()) {
+				var list = this.LastMessagesIdsInChannel[key];
+				list.AddRange(allMsgs.Current.Select(e=>e.Id));
+				await this._log.Info($"Including {allMsgs.Current.Count} messages on list of {list.Count} messages in '{channel.Name}'");
+				this.LastMessagesIdsInChannel[key] = list.Distinct().ToList();
+			}
+			
+		}
+
+		private async Task<IMessage> GetRandomUserMessageFromChannelCache(ISocketMessageChannel channel, int minimumDays) {
+			if (channel == null) return null;
+			var listOfMessages = this.LastMessagesIdsInChannel[channel.Id];
+
+			int maxTries = 10000;
+
+			do {
+				var selectedId = listOfMessages.RandomElement();
+				var msg = await channel.GetMessageAsync(selectedId);
+				if (msg is RestUserMessage m) {
+					var mResolved = m.Resolve(0,
+						TagHandling.Remove, TagHandling.Remove,
+						TagHandling.Remove, TagHandling.Ignore,
+						TagHandling.Ignore
+					);
+
+					bool isValidMsg = !m.Author.IsBot
+					&& !m.Author.IsWebhook
+					&& !string.IsNullOrEmpty(mResolved)
+					&& (DateTime.UtcNow - m.Timestamp) > TimeSpan.FromDays(minimumDays)
+					&& mResolved[0] != ','
+					&& mResolved[0] != '<'
+					&& mResolved[0] != 'h'
+					&& mResolved.Length > 5;
+
+					if (isValidMsg) {
+						this.LastMessagesIdsInChannel[channel.Id] = listOfMessages;
+						return m;
+					}
+				}
+				
+				// not valid, continue searching
+				listOfMessages.Remove(selectedId);
+				maxTries--;
+			} while (maxTries > 0);
+
+			await this._log.Info("Could not find valid message from channel cache.");
+			return null;
+		}
+
+		private const string CHANNEL_MSGS_PATH = "Backup/ChannelMessagesIds/";
+		private void UpdateCachedMsgsIdForChannelFromLocal(ulong channelId) {
+			var cachedJson = JsonCache.LoadFromJson<JArray>(CHANNEL_MSGS_PATH + channelId.ToString());
+			if (cachedJson == null) {
+				this.LastMessagesIdsInChannel[channelId] = new List<ulong>();
+				return;
+			}
+			var list = cachedJson.Select(e=>e.Value<ulong>()).ToList();
+			this.LastMessagesIdsInChannel[channelId] = list;
+		}
+		
+		private void SerializeMessages(List<ulong> messagesIds, string fileName) {
+			JsonCache.SaveToJson($"{CHANNEL_MSGS_PATH}{fileName}", messagesIds);
+		}
+		
+		#endregion <<---------- Chat Messages ---------->>
+		
+		
 		
 
 		#region <<---------- Pensador API ---------->>
 
-		private async Task<string> GetRandomMotivationPhrase() {
-			var client = new RestClient("https://www.pensador.com/frases");
+		public async Task<List<string>> GetRandomMotivationPhrase() {
+			var client = new RestClient("https://www.pensador.com/recentes");
 			var request = new RestRequest(Method.GET);
 			var timeline = await client.ExecuteAsync(request);
 
@@ -716,7 +808,9 @@ namespace NyuBot {
 				listOfPhrases.Add(node.InnerText);
 			}
 			
-			return listOfPhrases.RandomElement();
+			listOfPhrases = listOfPhrases.Where(p => !p.ToLower().Contains("deus") || !p.ToLower().Contains("senhor")).ToList();
+
+			return listOfPhrases;
 		}
 
 		#endregion <<---------- Pensador API ---------->>

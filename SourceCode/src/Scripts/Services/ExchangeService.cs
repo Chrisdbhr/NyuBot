@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json.Linq;
 using RestSharp;
-using SimpleJSON;
 
 namespace NyuBot {
 	public class ExchangeService : IDisposable {
@@ -58,7 +58,9 @@ namespace NyuBot {
 			Thread.CurrentThread.CurrentUICulture = cultureInfo;
 
 			// get last exchange json
-			var exchangeJson = await JsonCache.LoadJsonAsync(JPATH_EXCHANGEINFO, TimeSpan.FromMinutes(15));
+			var exchangeJson = JsonCache.LoadFromJson<JObject>(JPATH_EXCHANGEINFO, TimeSpan.FromMinutes(15));
+			
+			EmbedBuilder embed = null;
 
 			if (exchangeJson == null) {
 				var apiKey = this._config["apikey-freecurrencyconverter"];
@@ -69,32 +71,41 @@ namespace NyuBot {
 				var request = new RestRequest(Method.GET);
 				var timeline = await client.ExecuteAsync(request);
 
-				if (!string.IsNullOrEmpty(timeline.ErrorMessage)) {
+
+				if (!timeline.IsSuccessful || !string.IsNullOrEmpty(timeline.ErrorMessage)) {
 					Console.WriteLine($"Error trying to get exchangeJson: {timeline.ErrorMessage}");
+					embed = new EmbedBuilder {
+						Title = "Erro",
+						Description = "O serviço de cotação de dolar que eu uso não ta disponível",
+						Color = Color.Red,
+						Footer = new EmbedFooterBuilder {
+							Text = timeline.StatusDescription
+						}
+					};
+					await socketUserMessage.ReplyAsync(string.Empty, false, embed.Build());
 					return;
 				}
-				if (string.IsNullOrEmpty(timeline.Content)) return;
 
-				exchangeJson = JSON.Parse(timeline.Content);
-				if (exchangeJson == null || exchangeJson.IsNull) {
+				exchangeJson = JObject.Parse(timeline.Content);
+				if (!exchangeJson.HasValues) {
 					Console.WriteLine($"Error trying to parse exchangeJson! timeline.Content:\n{timeline.Content}");
 					return;
 				}
 
 				exchangeJson["cacheTime"] = (DateTime.UtcNow - TimeSpan.FromHours(3)).ToString("hh:mm:ss tt");
 				
-				await JsonCache.SaveToJson(JPATH_EXCHANGEINFO, exchangeJson);
+				JsonCache.SaveToJson(JPATH_EXCHANGEINFO, exchangeJson);
 			}
 
-			var currencyValue = exchangeJson[JKEY_USD_BRL].AsFloat;
+			var currencyValue = exchangeJson[JKEY_USD_BRL]?.Value<float>();
 			
-			var embed = new EmbedBuilder {
-				Title = currencyValue.ToString("C2", cultureInfo),
+			embed = new EmbedBuilder {
+				Title = currencyValue.Value.ToString("C2", cultureInfo),
 				Description = "Cotação do dolar",
 				Color = Color.DarkGreen
 			};
 			
-			var cacheTimeStr = exchangeJson["cacheTime"].Value;
+			var cacheTimeStr = exchangeJson["cacheTime"]?.Value<string>();
 			if (!string.IsNullOrEmpty(cacheTimeStr)) {
 				embed.Footer = new EmbedFooterBuilder {
 					Text = $"Atualizado as {cacheTimeStr}"

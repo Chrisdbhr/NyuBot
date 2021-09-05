@@ -3,17 +3,20 @@ using System.Text;
 using System.Threading.Tasks;
 using Discord;
 using Discord.WebSocket;
+using Newtonsoft.Json.Linq;
+using NyuBot.Models;
 
 namespace NyuBot {
-	public class JoinAndLeaveService {
+	public class GuildSettingsService {
+		
+		public const string PATH_PREFIX = "GuildSettings/";
 		
 		private readonly DiscordSocketClient _discord;
 		private readonly LoggingService _log;
-		private readonly Random _rand = new Random();
+		private readonly Random _rand = new();
 
-		public JoinAndLeaveService(DiscordSocketClient discord, LoggingService loggingService) {
+		public GuildSettingsService(DiscordSocketClient discord) { // cant access Log service here
 			this._discord = discord;
-			this._log = loggingService;
 
 			this._discord.UserJoined += async user => {
 				await this.UserJoined(user);
@@ -23,21 +26,30 @@ namespace NyuBot {
 			this._discord.UserBanned += this.UserBanned;
 			
 		}
+
+
+		#region <<---------- Get Guild Settings ---------->>
 		
+		public DGuildSettingsModel GetGuildSettings(ulong guildId) {
+			var path = $"{PATH_PREFIX}{guildId}";
+			return JsonCache.LoadFromJson<DGuildSettingsModel>(path) ?? new DGuildSettingsModel();
+		}
+		
+		#endregion <<---------- Get Guild Settings ---------->>
 		
 		private async Task UserJoined(SocketGuildUser socketGuildUser) {
 			await this._log.Info($"{socketGuildUser.Username} entrou no servidor {socketGuildUser.Guild.Name}");
-			
+
 			var guild = socketGuildUser.Guild;
-			var jsonNode = await JsonCache.LoadValueAsync($"GuildSettings/{guild.Id}", "joinChannelId");
-			if (jsonNode == null) return;
-			var channelId = jsonNode.Value;
-			if (string.IsNullOrEmpty(channelId)) return;
+			var guildSettings = GetGuildSettings(guild.Id);
+			var channelId = guildSettings.JoinChannelId;
+			if (channelId == null) return;
 			
-			var channel = guild.GetTextChannel(ulong.Parse(channelId));
+			var channel = guild.GetTextChannel(channelId.Value);
 			if (channel == null) return;
-			
-			await channel.SendMessageAsync($"Temos uma nova pessoinha no servidor, digam **oi** para {socketGuildUser.Mention}!");
+
+			var msgText = socketGuildUser.IsBot ? "Ah não mais um bot aqui 😭" : $"Temos uma nova pessoinha no servidor, digam **oi** para {socketGuildUser.Mention}!";
+			await channel.SendMessageAsync(msgText);
 		}
 		
 		
@@ -50,18 +62,18 @@ namespace NyuBot {
 		}
 		
 		private async Task UserLeavedGuild(SocketUser socketUser, SocketGuild socketGuild, string sufixMsg) {
-			var jsonNode = await JsonCache.LoadValueAsync($"GuildSettings/{socketGuild.Id}", "leaveChannelId");
-			if (jsonNode == null) return;
-			var channelId = jsonNode.Value;
-			if (string.IsNullOrEmpty(channelId)) return;
-
-			var channel = socketGuild.GetTextChannel(ulong.Parse(channelId));
+			var guild = socketGuild;
+			var guildSettings = GetGuildSettings(guild.Id);
+			var channelId = guildSettings.JoinChannelId;
+			if (channelId == null) return;
+			
+			var channel = guild.GetTextChannel(channelId.Value);
 			if (channel == null) return;
-
-			var jsonArray = (await JsonCache.LoadValueAsync("Answers/UserLeave", "data")).AsArray;
+			
+			var jsonArray = JsonCache.LoadFromJson<JArray>("Answers/UserLeave");
 			string customAnswer = null;
 			if (jsonArray != null) {
-				customAnswer = jsonArray[this._rand.Next(0, jsonArray.Count)].Value;
+				customAnswer = jsonArray[this._rand.Next(0, jsonArray.Count)].Value<string>();
 			}
 			
 			var embed = new EmbedBuilder {
@@ -74,8 +86,6 @@ namespace NyuBot {
 			title.Append($"{sufixMsg}");
 
 			embed.Title = title.ToString();
-			
-			var sendMsg = await channel.SendMessageAsync(customAnswer, false, embed.Build());
 			
 			// just leaved guild
 			if (socketUser is SocketGuildUser socketGuildUser) {
@@ -93,6 +103,7 @@ namespace NyuBot {
 				await guildOwner.SendMessageAsync($"Banido do servidor {socketGuild.Name}", false, embed.Build());
 			}
 			
+			var sendMsg = await channel.SendMessageAsync(socketUser.IsBot ? "Era um bot" : customAnswer, false, embed.Build());
 			await sendMsg.AddReactionAsync(new Emoji(":regional_indicator_f:"));
 		}
 

@@ -10,10 +10,10 @@ namespace NyuBot {
 	public class SleepService {
 
 		public SleepService(DiscordSocketClient discord, DatabaseService db, LoggingService loggingService) {
+			return;
 			this._discord = discord;
 			this._db = db;
 			this._log = loggingService;
-			
 			this._discord.MessageReceived += this.MessageReceived;
 			this._discord.UserUpdated += async (oldUser, newUser) => {
 				if (!(newUser is SocketGuildUser socketGuildUser)) return;
@@ -107,7 +107,7 @@ namespace NyuBot {
 			
 			// DM
 			try {
-				var dm = await user.GetOrCreateDMChannelAsync();
+				var dm = await user.CreateDMChannelAsync();
 				await dm.SendMessageAsync("Acordou!", false, embed.Build());
 			} catch (Exception e) {
 				await this._log.Error(e.ToString());

@@ -18,5 +18,12 @@ namespace NyuBot.Extensions {
 			return guildUser.GetAvatarUrl() ?? guildUser.GetDefaultAvatarUrl();
 		}
 
+		public static string GetNameOrNickSafe(this IUser user) {
+			if (user is IGuildUser guildUser) {
+				return string.IsNullOrEmpty(guildUser.Nickname) ? user.Username : guildUser.Nickname;
+			}
+			return user.Username;
+		}
+
 	}
 }

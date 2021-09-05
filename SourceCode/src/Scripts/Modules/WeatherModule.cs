@@ -7,13 +7,15 @@ using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
 using NyuBot.Extensions;
+using NyuBot.Weather;
 using RestSharp;
-using SimpleJSON;
 
 namespace NyuBot.Modules {
 	public class WeatherModule : ModuleBase<SocketCommandContext> {
-		
+
+		private const string PATH = "WeatherInfo/";
 		private readonly WeatherService _service;
 		private readonly DiscordSocketClient _discord;
 		private readonly IConfigurationRoot _config;
@@ -37,7 +39,7 @@ namespace NyuBot.Modules {
 			Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
 
 			// check cache
-			var weatherJson = await JsonCache.LoadJsonAsync($"WeatherInfo/{location}", this.MAX_CACHE_AGE);
+			var weatherJson = JsonCache.LoadFromJson<DWeatherResponseModel>($"{PATH}{location}", this.MAX_CACHE_AGE);
 			if (weatherJson == null) {
 				
 				var locationEncoded = HttpUtility.UrlEncode(location);
@@ -54,34 +56,33 @@ namespace NyuBot.Modules {
 				}
 				if (string.IsNullOrEmpty(timeline.Content)) return;
 
-				weatherJson = JSON.Parse(timeline.Content);
-				if (weatherJson == null || weatherJson["cod"].AsInt != 200) {
+				weatherJson = JsonConvert.DeserializeObject<DWeatherResponseModel>(timeline.Content, JsonCache.DefaultSerializer);
+				if (weatherJson == null || weatherJson.ErrorCode != 200) {
 					Console.WriteLine($"Error trying to parse weather json for {location}! timeline.Content:\n{timeline.Content}");
 					return;
 				}
 
-				weatherJson["cacheTime"] = (DateTime.UtcNow - TimeSpan.FromHours(3)).ToString("hh:mm:ss tt");
+				weatherJson.CacheTime = (DateTime.UtcNow - TimeSpan.FromHours(3)).ToString("hh:mm:ss tt");
 				
-				await JsonCache.SaveToJson($"WeatherInfo/{location}", weatherJson);
+				JsonCache.SaveToJson($"{PATH}{location}", weatherJson);
 			}
-			
-			var currentCelsius = weatherJson["main"]["temp"].AsFloat - 273.15f; // kelvin to celsius
+
+			var feelsLike = weatherJson.MainWeatherTemperature.FeelsLikeCelsius;
 			
 			var embed = new EmbedBuilder();
 
-			embed.Title = $"{currentCelsius:0} °C";
-			embed.Description = $"Temperatura em {weatherJson["name"].Value}";
+			embed.Title = $"{feelsLike:0} °C";
+			embed.Description = $"Sensação térmica em {weatherJson.LocalName}";
 
-			var cacheTimeStr = weatherJson["cacheTime"].Value;
-			if (!string.IsNullOrEmpty(cacheTimeStr)) {
+			if (!string.IsNullOrEmpty(weatherJson.CacheTime)) {
 				embed.Footer = new EmbedFooterBuilder {
-					Text = $"Atualizado as {cacheTimeStr}"
+					Text = $"Atualizado as {weatherJson.CacheTime}"
 				};
 			}
 
 			// get icon
 			try {
-				var iconCode = weatherJson["weather"][0]["icon"].Value;
+				var iconCode = weatherJson.WeatherInfoModel[0].Icon;
 				embed.ThumbnailUrl = $"http://openweathermap.org/img/w/{iconCode}.png";
 
 			} catch (Exception e) {
@@ -90,7 +91,7 @@ namespace NyuBot.Modules {
 			
 			// get humildade
 			try {
-				var value = weatherJson["main"]["humidity"].Value;
+				var value = weatherJson.MainWeatherTemperature.Humidity;
 				embed.AddField(
 					new EmbedFieldBuilder {
 						Name = $"{value}%",
@@ -102,14 +103,14 @@ namespace NyuBot.Modules {
 				Console.WriteLine($"Error trying to set humidity: {e}");
 			}
 
-			// get sensation
-			float feelsLike = 0;
+			// temperature
+			float temperature = 0;
 			try {
-				feelsLike = weatherJson["main"]["feels_like"].AsFloat - 273.15f; // kelvin to celsius
+				temperature = weatherJson.MainWeatherTemperature.TemperatureCelsius;
 				embed.AddField(
 					new EmbedFieldBuilder {
-						Name = $"{feelsLike:0} °C",
-						Value = "Sensação térmica",
+						Name = $"{temperature:0} °C",
+						Value = "Temperatura",
 						IsInline = true
 					}
 				);
@@ -119,7 +120,7 @@ namespace NyuBot.Modules {
 			
 			// get wind
 			try {
-				var value = weatherJson["wind"]["speed"].AsFloat * 3.6f; // mp/s to km/h
+				var value = weatherJson.Wind.Speed * 3.6f; // mp/s to km/h
 				embed.AddField(
 					new EmbedFieldBuilder {
 						Name = $"{value:0} (km/h)",
@@ -133,8 +134,8 @@ namespace NyuBot.Modules {
 
 			// get weather name
 			try {
-				var value = weatherJson["weather"][0]["main"].Value;
-				var description = weatherJson["weather"][0]["description"].Value;
+				var value = weatherJson.WeatherInfoModel[0].Main;
+				var description = weatherJson.WeatherInfoModel[0].Description;
 				embed.AddField(
 					new EmbedFieldBuilder {
 						Name = value,

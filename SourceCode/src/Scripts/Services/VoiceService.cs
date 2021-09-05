@@ -12,10 +12,11 @@ namespace NyuBot {
 
 		#region <<---------- Initializers ---------->>
 
-		public VoiceService(DiscordSocketClient discord, LoggingService loggingService) {
+		public VoiceService(DiscordSocketClient discord, LoggingService loggingService, GuildSettingsService guildSettings) {
 			this._disposable?.Dispose();
 			this._disposable = new CompositeDisposable();
 
+			this._guildSettings = guildSettings;
 			this._discord = discord;
 			this._log = loggingService;
 
@@ -33,6 +34,7 @@ namespace NyuBot {
 		private CompositeDisposable _disposable;
 		private readonly DiscordSocketClient _discord;
 		private readonly LoggingService _log;
+		private readonly GuildSettingsService _guildSettings;
 
 		private DateTime _voiceChannelLastTimeRenamed;
 		private TimeSpan _voiceChannelIntervalToRename = TimeSpan.FromSeconds(15);
@@ -75,10 +77,8 @@ namespace NyuBot {
 		private async Task OnUserUpdated(SocketUser oldUser, SocketUser newUser) {
 			if (newUser is not SocketGuildUser user) return;
 
-			var json = await JsonCache.LoadJsonAsync($"DynamicVoiceChannels/{user.Guild}");
-			if (json == null) return;
-			var dynamicChannels = json["channels"].AsArray;
-			if (dynamicChannels == null || dynamicChannels.Count <= 0) return;
+			var dynamicVoiceChannelsId = this._guildSettings.GetGuildSettings(user.Guild.Id).DynamicVoiceChannels;
+			if (dynamicVoiceChannelsId == null || dynamicVoiceChannelsId.Length <= 0) return;
 			
 			var allVoiceChannels = user.Guild.VoiceChannels;
 

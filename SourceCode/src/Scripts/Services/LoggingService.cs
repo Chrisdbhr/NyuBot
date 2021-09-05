@@ -14,6 +14,7 @@ namespace NyuBot {
 		
 		private readonly DiscordSocketClient _discord;
 		private readonly CommandService _commands;
+		private readonly GuildSettingsService _guildSettings;
 
 		private string _logDirectory { get; }
 		public string LogFile { get { return Path.Combine(this._logDirectory, $"{DateTime.UtcNow.ToString("yyyy-MM-dd")}.log"); } }
@@ -25,12 +26,13 @@ namespace NyuBot {
 
 		#region <<---------- Initializers ---------->>
 		
-		public LoggingService(DiscordSocketClient discord, CommandService commands) {
+		public LoggingService(DiscordSocketClient discord, CommandService commands, GuildSettingsService guildSettings) {
 			var now = DateTime.UtcNow;
 			this._logDirectory = Path.Combine(AppContext.BaseDirectory, "logs", now.Year.ToString("00"), now.Month.ToString("00"));
 
 			this._discord = discord;
 			this._commands = commands;
+			this._guildSettings = guildSettings;
 
 			this._discord.Log += this.OnLogAsync;
 			this._commands.Log += this.OnLogAsync;
@@ -41,25 +43,26 @@ namespace NyuBot {
 
 		
 	
-		private Task OnLogAsync(LogMessage msg) {
+		private async Task OnLogAsync(LogMessage msg) {
 			if (!Directory.Exists(this._logDirectory)) Directory.CreateDirectory(this._logDirectory);
 			if (!File.Exists(this.LogFile)) File.Create(this.LogFile).Dispose();// Create today's log file if it doesn't exist
 
 			string logText = $"{DateTime.UtcNow.ToString("hh:mm:ss tt")} [{msg.Severity}] {msg.Source}: {msg.Exception?.ToString() ?? msg.Message}";
-			File.AppendAllText(this.LogFile, logText + "\n"); // Write the log text to a file
+			await File.AppendAllTextAsync(this.LogFile, logText + "\n"); // Write the log text to a file
 
 			this.LogOnDiscordChannel(msg).CAwait();
 			
-			return Console.Out.WriteLineAsync(logText); // Write the log text to the console
+			await Console.Out.WriteLineAsync(logText); // Write the log text to the console
 		}
 
 		private async Task LogOnDiscordChannel(LogMessage msg) {
 			//if (msg.Severity > LogSeverity.Error) return;
 			if (msg.Severity > LogSeverity.Warning) return;
 			foreach (var guild in this._discord.Guilds) {
-				var id = await JsonCache.LoadValueAsync($"GuildSettings/{guild.Id.ToString()}", "channel-bot-logs-id");
+				//var id = await JsonCache.LoadValueAsync($"GuildSettings/{guild.Id.ToString()}", "channel-bot-logs-id");
+				var id = this._guildSettings.GetGuildSettings(guild.Id).BotLogsTextChannelId;
 				if (id == null) continue;
-				var textChannel = guild.GetTextChannel(Convert.ToUInt64(id.Value));
+				var textChannel = guild.GetTextChannel(id.Value);
 				if (textChannel == null) continue;
 				
 				var embed = new EmbedBuilder();
