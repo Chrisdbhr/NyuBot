@@ -658,7 +658,7 @@ namespace NyuBot {
 						var timeline = await client.ExecuteAsync(request);
 						if (!string.IsNullOrEmpty(timeline.ResponseUri.OriginalString)) {
 							embed.ThumbnailUrl = timeline.ResponseUri.OriginalString;
-							await msgSend.ModifyAsync(p => p.Embed = embed.Build());
+							if(msgSend != null) await msgSend.ModifyAsync(p => p.Embed = embed.Build());
 						}
 					} catch (Exception e) {
 						await this._log.Error(e.ToString());
