@@ -21,7 +21,6 @@ namespace NyuBot {
 			this._log = loggingService;
 
 			this._discord.UserVoiceStateUpdated += this.OnUserVoiceChannelStateUpdate;
-			this._discord.UserUpdated += this.OnUserUpdated;
 		}
 
 		#endregion <<---------- Initializers ---------->>
