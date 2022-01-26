@@ -604,6 +604,12 @@ namespace NyuBot {
 				try {
 					string title = time.ToString("h tt", CultureInfo.InvariantCulture);
 					string msg = null;
+					var guildSettings = this._guildSettings.GetGuildSettings(guild.Id);
+					if (guildSettings.HourlyMessageChannelId == null) continue;
+				
+					var channel = guild.GetTextChannel(guildSettings.HourlyMessageChannelId.Value);
+					if (channel == null) continue;
+
 					switch (time.Hour) {
 						case 0:
 							title = "Meia noite, vão dormi";
@@ -614,12 +620,7 @@ namespace NyuBot {
 							msg = $"Hora de comer *nhon nhon nhon*";
 							break;
 					}
-
-					if (this._guildSettings.GetGuildSettings(guild.Id).HourlyMessageChannelId == null) continue;
 					
-					var channel = guild.GetTextChannel(this._guildSettings.GetGuildSettings(guild.Id).HourlyMessageChannelId.Value);
-					if (channel == null) continue;
-
 					if (channel.CachedMessages.Count <= 0) return;
 
 					var lastUserMsg = channel.CachedMessages.OrderBy(m => m.Timestamp).Last() as IUserMessage;
@@ -628,7 +629,7 @@ namespace NyuBot {
 
 					// motivation phrase
 					if (string.IsNullOrEmpty(msg)) {
-						msg = (await this.GetRandomMotivationPhrase()).RandomElement();
+						msg = await this.GetRandomMotivationPhrase();
 					}
 					msg = string.IsNullOrEmpty(msg) ? "Hora agora" : $"*\"{msg}\"*";
 
@@ -786,6 +787,15 @@ namespace NyuBot {
 
 		#region <<---------- Pensador API ---------->>
 
+		public async Task<string> GetRandomMotivationPhrase() {
+			var phrases = await this.GetListOfMotivationalPhrases();
+			if (!phrases.Any()) return null;
+			return phrases
+			.Where(p => !p.ToLower().Contains("deus") || !p.ToLower().Contains("senhor"))
+			.OrderBy(p => p.Length)
+			.Take(phrases.Count / 2)
+			.RandomElement();
+		}
 
 		private async Task<List<string>> GetListOfMotivationalPhrases() {
 			var client = new RestClient();
@@ -806,8 +816,6 @@ namespace NyuBot {
 				listOfPhrases.Add(node.InnerText);
 			}
 			
-			listOfPhrases = listOfPhrases.Where(p => !p.ToLower().Contains("deus") || !p.ToLower().Contains("senhor")).ToList();
-
 			return listOfPhrases;
 		}
 

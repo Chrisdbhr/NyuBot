@@ -57,8 +57,8 @@ namespace NyuBot {
 			await this.UserLeavedGuild(socketUser, socketGuild, " saiu do servidor...");
 		}	
 		
-		private async Task UserLeft(SocketGuildUser socketGuildUser) {
-			await this.UserLeavedGuild(socketGuildUser, socketGuildUser.Guild, " saiu do servidor.");
+		private async Task UserLeft(SocketGuild socketGuild, SocketUser socketUser) {
+			await this.UserLeavedGuild(socketUser, socketGuild, " saiu do servidor.");
 		}
 		
 		private async Task UserLeavedGuild(SocketUser socketUser, SocketGuild socketGuild, string sufixMsg) {

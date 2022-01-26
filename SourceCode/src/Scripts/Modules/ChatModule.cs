@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
+using Discord.WebSocket;
 using NyuBot.Extensions;
 
 namespace NyuBot.Modules {
@@ -21,12 +22,11 @@ namespace NyuBot.Modules {
 		[Command("randomphrase"), Alias("rf")]
 		[Summary("Get a random motivacional phrase")]
 		public async Task GetRandomPhrase() {
-			var phrases = await this._service.GetRandomMotivationPhrase();
-			if (phrases.Count <= 0) return;
-
+			var phrase = await this._service.GetRandomMotivationPhrase();
+			if (string.IsNullOrEmpty(phrase)) return;
 			var embed = new EmbedBuilder {
 				Title = "Frase",
-				Description = $"*\"{phrases.RandomElement()}\"*",
+				Description = $"*\"{phrase}\"*",
 				Footer = new EmbedFooterBuilder {
 					Text = "pensador.com"
 				}
