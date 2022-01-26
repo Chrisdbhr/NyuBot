@@ -1,20 +1,32 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 using Discord;
+using Discord.Commands;
 using Discord.WebSocket;
+using NyuBot.Extensions;
 
 namespace NyuBot {
 	public class BackupService {
+
+		#region <<---------- Properties ---------->>
 		
 		private readonly DiscordSocketClient _discord;
 		private readonly GuildSettingsService _guildSettings;
 		private readonly LoggingService _log;
 
+		public const string TempDirPrefix = "temp/"; // keep the '/' at the end
+
+		#endregion <<---------- Properties ---------->>
+
+
 		
-		
+
+		#region <<---------- Initializers ---------->>
 		
 		public BackupService(DiscordSocketClient discord, LoggingService loggingService, GuildSettingsService guildSettings) {
 			this._discord = discord;
@@ -24,6 +36,10 @@ namespace NyuBot {
 			this._discord.MessageReceived += this.MessageWithAttachmentReceived;
 		}
 		
+		#endregion <<---------- Initializers ---------->>
+
+
+
 		private async Task MessageWithAttachmentReceived(SocketMessage socketMessage) {
 			if (socketMessage.Author.IsBot || socketMessage.Author.IsWebhook) return;
 			if (socketMessage.Channel is not SocketGuildChannel guildChannel) return;
@@ -68,10 +84,10 @@ namespace NyuBot {
 		}
 
 		/// <summary>
-		/// Returns list of attachments backup paths.
+		/// Returns list of attachments backup file names and paths.
 		/// </summary>
-		private async Task<string[]> BackupAttachments(IReadOnlyCollection<Attachment> Attachments) {
-			var paths = new List<string>();
+		public async Task<string[]> BackupAttachments(IReadOnlyCollection<Attachment> Attachments) {
+			var filePathsAndNames = new List<string>();
 			
 			foreach (var attachment in Attachments) {
 				var dateTime = DateTime.UtcNow;
@@ -86,14 +102,18 @@ namespace NyuBot {
 					filePathAndName = $"{dateTime.Ticks}_{filePathAndName}";
 				}
 				using (var client = new WebClient()) {
-					await client.DownloadFileTaskAsync(new Uri(attachment.Url), filePathAndName);
+					try { 				
+						await client.DownloadFileTaskAsync(new Uri(attachment.Url), filePathAndName);
+					} catch (Exception e) {
+						Console.WriteLine(e);
+					}
 				}
 				
-				paths.Add(filePathAndName);
+				filePathsAndNames.Add(filePathAndName);
 
 			}
 
-			return paths.ToArray();
+			return filePathsAndNames.ToArray();
 		}
 		
 	}
