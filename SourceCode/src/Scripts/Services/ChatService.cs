@@ -546,9 +546,8 @@ namespace NyuBot {
 		}
 
 		private async Task<string> GetBotPublicIp() {
-			var client = new RestClient("http://ipinfo.io/ip");
-			var request = new RestRequest(Method.GET);
-			var timeline = await client.ExecuteAsync(request);
+			var client = new RestClient();
+			var timeline = await client.ExecuteAsync(new RestRequest("http://ipinfo.io/ip", Method.Get));
 
 			if (!string.IsNullOrEmpty(timeline.ErrorMessage)) {
 				await this._log.Error($"Error trying to get bot IP: {timeline.ErrorMessage}");
@@ -653,9 +652,8 @@ namespace NyuBot {
 
 					// get random photo
 					try {
-						var client = new RestClient("https://picsum.photos/96");
-						var request = new RestRequest(Method.GET);
-						var timeline = await client.ExecuteAsync(request);
+						var client = new RestClient();
+						var timeline = await client.ExecuteAsync(new RestRequest("https://picsum.photos/96", Method.Get));
 						if (!string.IsNullOrEmpty(timeline.ResponseUri.OriginalString)) {
 							embed.ThumbnailUrl = timeline.ResponseUri.OriginalString;
 							if(msgSend != null) await msgSend.ModifyAsync(p => p.Embed = embed.Build());
@@ -788,11 +786,11 @@ namespace NyuBot {
 
 		#region <<---------- Pensador API ---------->>
 
-		public async Task<List<string>> GetRandomMotivationPhrase() {
-			var client = new RestClient("https://www.pensador.com/recentes");
-			var request = new RestRequest(Method.GET);
-			var timeline = await client.ExecuteAsync(request);
 
+		private async Task<List<string>> GetListOfMotivationalPhrases() {
+			var client = new RestClient();
+			var timeline = await client.ExecuteAsync(new RestRequest("https://www.pensador.com/recentes", Method.Get));
+			
 			if (!string.IsNullOrEmpty(timeline.ErrorMessage) || string.IsNullOrEmpty(timeline.Content)) {
 				await this._log.Error($"Error trying Random Motivation Phrase: {timeline.ErrorMessage}");
 				return null;

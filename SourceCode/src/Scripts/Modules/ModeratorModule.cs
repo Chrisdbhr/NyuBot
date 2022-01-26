@@ -78,8 +78,8 @@ namespace NyuBot.Modules {
 
         [Command("randomimg")]
         public async Task GetRandomImg(int desiredResolution = 512) {
-            var client = new RestClient($"https://picsum.photos/{desiredResolution}");
-            var timeline = await client.ExecuteAsync(new RestRequest(Method.GET));
+            var client = new RestClient();
+            var timeline = await client.ExecuteAsync(new RestRequest($"https://picsum.photos/{desiredResolution}", Method.Get));
 
             var embed = new EmbedBuilder {
                 Title = "Random image",

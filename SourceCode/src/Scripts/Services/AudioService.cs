@@ -125,7 +125,7 @@ namespace NyuBot {
 		#endregion <<---------- Public ---------->>
 
 		private async Task<bool> IsBotMemeFile(string url) {
-			var timeline = await new RestClient(url).ExecuteAsync(new RestRequest(Method.GET));
+			var timeline = await new RestClient().ExecuteAsync(new RestRequest(url, Method.Get));
 			return string.IsNullOrEmpty(timeline.ErrorMessage);
 		}
 		
