@@ -1,10 +1,14 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using NyuBot.Extensions;
 using RestSharp;
 
@@ -14,8 +18,18 @@ namespace NyuBot.Modules {
     [RequireContext(ContextType.Guild)]
     public class ModeratorModule : ModuleBase<SocketCommandContext> {
 
+        #region <<---------- Properties and Fields ---------->>
+        
         private readonly ModeratorService _moderatorService;
         private readonly LoggingService _log;
+
+        private Dictionary<ulong, DateTime> _lastChangedChannelsTimes = new();
+        private TimeSpan _cooldownToChangeTeamName = TimeSpan.FromMinutes(1);
+
+        #endregion <<---------- Properties and Fields ---------->>
+        
+        
+        
 
         public ModeratorModule(ModeratorService moderatorService, LoggingService loggingService) {
             this._moderatorService = moderatorService;
@@ -167,9 +181,28 @@ namespace NyuBot.Modules {
         [Command("teamname")]
         [RequireBotPermission(GuildPermission.ManageChannels)]
         public async Task RenameTeam(params string[] name) {
-            if (this.Context.Guild.Id != 798667749081481226) return;
+            var json = JsonCache.LoadFromJson<JArray>("Moderation/guild-with-teams");
+            if (!json.Any(v => v.Value<ulong>() == this.Context.Guild.Id)) return;
+            
             if (!(this.Context.Channel is SocketTextChannel textChannel)) return;
             name ??= new[] {"equipe"};
+
+            var embed = new EmbedBuilder();
+            IUserMessage msg = null;
+
+            if (this._lastChangedChannelsTimes.ContainsKey(this.Context.Channel.Id)) {
+                var nextTime = this._lastChangedChannelsTimes[this.Context.Channel.Id] + this._cooldownToChangeTeamName;
+                if (DateTime.UtcNow <= nextTime) {
+                    embed.Title = "calma";
+                    embed.Description = $"a equipe mudou o nome agora a pouco, espera mais uns {(DateTime.UtcNow - nextTime).TotalSeconds} segundos pra tentar denovo";
+                    embed.Color = Color.Orange;
+                    await this.ReplyAsync(string.Empty, false, embed.Build());
+                    return;
+                }
+                else {
+                    this._lastChangedChannelsTimes.Remove(this.Context.Channel.Id);
+                }
+            }
 
             try {
                 // name
@@ -185,6 +218,13 @@ namespace NyuBot.Modules {
 
                 var fullName = $"{names[0]}-{names[1]}";
 
+                // answer
+                embed.Title = "perai q eu so lenta";
+                embed.Description = $"vo tentar mudar o nome da equipe pra '{fullName}'";
+                embed.Color = Color.Blue;
+                
+                msg = await this.ReplyAsync(string.Empty, false, embed.Build());
+                
                 await textChannel.ModifyAsync(p => p.Name = fullName);
                 await textChannel.Category.ModifyAsync(p => p.Name = fullName);
 
@@ -193,19 +233,38 @@ namespace NyuBot.Modules {
                     await voiceChannel.ModifyAsync(p => p.Name = fullName);
                     break;
                 }
-                
-                await this.ReplyAsync($"troquei o nome da equipe pra **{fullName}**, {this.GetNameChangeAnswer(names[1])}");
+
+                // done
+                embed.Title = "Pronto";
+                embed.Description = $"troquei o nome da equipe pra **{fullName}**, {this.GetNameChangeAnswer(names[1])}";
+                embed.Color = Color.Green;
+                this._lastChangedChannelsTimes[this.Context.Channel.Id] = DateTime.UtcNow;
+                await msg.ModifyAsync(m => m.Embed = embed.Build());
 
             } catch (Exception e) {
-                await this.ReplyAsync($"{this.Context.Guild.Owner.Mention} socorro nao entendi o q o {(this.Context.User as SocketGuildUser).GetNameSafe()} falou");
+                embed.Title = "oh no";
+                embed.Description = $"{this.Context.Guild.Owner.Mention} socorro nao entendi o q o {(this.Context.User as SocketGuildUser).GetNameSafe()} falou";
+                embed.Footer = new EmbedFooterBuilder {
+                    Text = e.Message.SubstringSafe(256)
+                };
+                embed.Color = Color.Red;
+
                 await this._log.Error(e.ToString());
+
+                if (msg != null) {
+                    await msg.ModifyAsync(m => m.Embed = embed.Build());
+                }
+                else {
+                    await this.ReplyAsync(string.Empty, false, embed.Build());
+                }
+                
             }
         }
 
         private string GetNameChangeAnswer(string teamName) {
             teamName = ChatService.RemoveDiacritics(teamName);
             teamName = teamName.ToLower()
-                               .Replace(" ", "");
+                               .Replace(" ", string.Empty);
             
             if (teamName == "equipe") {
                 return "nome padrão";
