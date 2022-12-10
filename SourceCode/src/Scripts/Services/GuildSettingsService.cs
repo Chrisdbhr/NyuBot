@@ -13,7 +13,7 @@ namespace NyuBot {
 		
 		private readonly DiscordSocketClient _discord;
 		private readonly LoggingService _log;
-		private readonly Random _rand = new();
+		private readonly Random _rand = new Random();
 
 		public GuildSettingsService(DiscordSocketClient discord) { // cant access Log service here
 			this._discord = discord;
