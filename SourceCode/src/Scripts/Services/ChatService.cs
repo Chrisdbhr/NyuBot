@@ -8,6 +8,7 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
@@ -505,7 +506,7 @@ namespace NyuBot {
 		#region <<---------- User ---------->>
 		
 		public async Task UpdateSelfStatusAsync() {
-			var statusText = Program.VERSION;
+			var statusText = $"v{Program.VERSION.ToString()}";
 			try {
 				var activitiesJsonArray = JsonCache.LoadFromJson<JArray>("BotStatus");
 				var index = this._rand.Next(0, activitiesJsonArray.Count);
@@ -528,8 +529,8 @@ namespace NyuBot {
 		#endregion <<---------- User ---------->>
 
 
-		
-		
+
+
 		#region <<---------- Bot IP ---------->>
 
 		private async Task CheckForBotPublicIp() {
@@ -578,16 +579,15 @@ namespace NyuBot {
 					var image = new Image(fileStream);
 					await this._discord.CurrentUser.ModifyAsync(p => p.Avatar = image);
 				}
-			} catch (Exception e) {
-				await this._log.Error($"Error trying to modify bot own profile pic: {e.Message.SubstringSafe(32)}");
-			}
-
-			var newName = day ? "Nyu" : "Lucy";
-			foreach (var guild in this._discord.Guilds) {
-				if (guild.CurrentUser.Nickname == newName) continue;
-				if (guild.CurrentUser.GuildPermissions.ChangeNickname) {
-					await guild.CurrentUser.ModifyAsync(p => p.Nickname = newName);
+				var newName = day ? "Nyu" : "Lucy";
+				foreach (var guild in this._discord.Guilds) {
+					if (guild.CurrentUser.Nickname == newName) continue;
+					if (guild.CurrentUser.GuildPermissions.ChangeNickname) {
+						await guild.CurrentUser.ModifyAsync(p => p.Nickname = newName);
+					}
 				}
+			} catch (Exception e) {
+				await this._log.Error($"Error trying to modify bot own profile pic OR nickname: {e.Message.SubstringSafe(32)}");
 			}
 
 		}
