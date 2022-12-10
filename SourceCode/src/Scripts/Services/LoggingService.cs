@@ -56,21 +56,26 @@ namespace NyuBot {
 		}
 
 		private async Task LogOnDiscordChannel(LogMessage msg) {
-			//if (msg.Severity > LogSeverity.Error) return;
-			if (msg.Severity > LogSeverity.Warning) return;
-			foreach (var guild in this._discord.Guilds) {
-				//var id = await JsonCache.LoadValueAsync($"GuildSettings/{guild.Id.ToString()}", "channel-bot-logs-id");
-				var id = this._guildSettings.GetGuildSettings(guild.Id).BotLogsTextChannelId;
-				if (id == null) continue;
-				var textChannel = guild.GetTextChannel(id.Value);
-				if (textChannel == null) continue;
-				
-				var embed = new EmbedBuilder();
-				embed.Color = this.GetColorByLogSeverity(msg.Severity);
-				embed.Title = msg.Severity.ToString();
-				embed.Description = msg.ToString().SubstringSafe(1024);
+			try {
+				//if (msg.Severity > LogSeverity.Error) return;
+				if (msg.Severity > LogSeverity.Warning) return;
+				foreach (var guild in this._discord.Guilds) {
+					//var id = await JsonCache.LoadValueAsync($"GuildSettings/{guild.Id.ToString()}", "channel-bot-logs-id");
+					var id = this._guildSettings.GetGuildSettings(guild.Id).BotLogsTextChannelId;
+					if (id == null) continue;
+					var textChannel = guild.GetTextChannel(id.Value);
+					if (textChannel == null) continue;
+					
+					var embed = new EmbedBuilder {
+						Color = this.GetColorByLogSeverity(msg.Severity),
+						Title = msg.Severity.ToString(),
+						Description = msg.ToString().SubstringSafe(1024)
+					};
 
-				await textChannel.SendMessageAsync("", false, embed.Build());
+					await textChannel.SendMessageAsync(string.Empty, false, embed.Build());
+				}
+			} catch (Exception e) {
+				await Console.Out.WriteLineAsync("Exception trying to log message to channel:" + e.Message); // Write the log text to the console
 			}
 		}
 
