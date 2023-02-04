@@ -11,7 +11,7 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Discord.Net" Version="3.8.1" />
+    <PackageReference Include="Discord.Net" Version="3.9.0" />
     <PackageReference Include="HtmlAgilityPack" Version="1.11.40" />
     <PackageReference Include="Lavalink4NET.Discord.NET" Version="2.1.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="5.0.0" />

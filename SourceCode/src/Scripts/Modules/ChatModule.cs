@@ -12,6 +12,7 @@ namespace NyuBot.Modules {
 
 
 
+		
 		public ChatModule(ChatService service) {
 			this._service = service;
 		}
@@ -36,7 +37,6 @@ namespace NyuBot.Modules {
 			await this.Context.Message.DeleteAsync();
 		}
 
-
 		[Command("remember"), Alias("rm")]
 		[Summary("Get a random message from a user in all chats")]
 		[RequireUserPermission(GuildPermission.SendMessages)]
@@ -47,7 +47,6 @@ namespace NyuBot.Modules {
 			}
 		}
 
-		
 		[Command("remember"), Alias("rm")]
 		[Summary("Get a random message from a user in all chats, adm version")]
 		[RequireUserPermission(GuildPermission.Administrator)]
@@ -64,7 +63,6 @@ namespace NyuBot.Modules {
 		public async Task UpdateSelfStatus() {
 			await this._service.UpdateSelfStatusAsync();
 		}
-
 
 	}
 }
