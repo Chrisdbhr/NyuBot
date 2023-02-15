@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using System.Threading.Tasks;
+using Discord.Net;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using NyuBot.Extensions;
 using RestSharp;
@@ -22,6 +21,7 @@ namespace NyuBot.Modules {
         
         private readonly ModeratorService _moderatorService;
         private readonly LoggingService _log;
+        private readonly DiscordSocketClient _discord;
 
         private Dictionary<ulong, DateTime> _lastChangedChannelsTimes = new();
         private TimeSpan _cooldownToChangeTeamName = TimeSpan.FromMinutes(1);
@@ -31,9 +31,11 @@ namespace NyuBot.Modules {
         
         
 
-        public ModeratorModule(ModeratorService moderatorService, LoggingService loggingService) {
+        public ModeratorModule(DiscordSocketClient discord, ModeratorService moderatorService, LoggingService loggingService) {
             this._moderatorService = moderatorService;
             this._log = loggingService;
+            this._discord = discord;
+            this._discord.GuildAvailable += GuildAvailable;
         }
 
 
@@ -175,6 +177,64 @@ namespace NyuBot.Modules {
             await category.ModifyAsync(p => p.Position = pos);
         }
 
+        [Command("deleteallteams")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        [RequireBotPermission(GuildPermission.ManageChannels)]
+        public async Task DeleteAllTeams() {
+            var guild = this.Context.Guild;
+            
+            var embed = new EmbedBuilder();
+            IUserMessage msg = null;
+
+            try {
+
+                await this._log.Info($"Will delete all Teams in {guild.Name}");
+
+                var allTextChannels = guild.TextChannels.Where(s => int.TryParse(s.Name.Split('-')[0], out _));
+                var allVoiceChannles = guild.VoiceChannels.Where(s => int.TryParse(s.Name.Split('-')[0], out _));
+                var allCategories = guild.CategoryChannels.Where(s => int.TryParse(s.Name.Split('-')[0], out _));
+                
+                await this._log.Info($"Texts {allTextChannels.Count()}, Voices {allVoiceChannles.Count()}, Cats {allCategories.Count()}");
+
+
+                foreach (var c in allTextChannels) {
+                    await Task.Delay(1000);
+                    if (c == null) continue;
+                    await this._log.Info($"Deleting {c.Name}");
+                    await c.DeleteAsync();
+                }
+                foreach (var c in allVoiceChannles) {
+                    await Task.Delay(1000);
+                    if (c == null) continue;
+                    await this._log.Info($"Deleting {c.Name}");
+                    await c.DeleteAsync();
+                }
+                foreach (var c in allCategories) {
+                    await Task.Delay(1000);
+                    if (c == null) continue;
+                    await this._log.Info($"Deleting {c.Name}");
+                    await c.DeleteAsync();
+                }
+                
+            } catch (Exception e) {
+                embed.Title = "oh no";
+                embed.Description = $"{this.Context.Guild.Owner.Mention} socorro nao consegui destruir tudo";
+                embed.Footer = new EmbedFooterBuilder {
+                    Text = e.Message.SubstringSafe(256)
+                };
+                embed.Color = Color.Red;
+
+                await this._log.Error(e.ToString());
+
+                if (msg != null) {
+                    await msg.ModifyAsync(m => m.Embed = embed.Build());
+                }
+                else {
+                    await this.ReplyAsync(string.Empty, false, embed.Build());
+                }
+                
+            }
+        }
 
 
 
