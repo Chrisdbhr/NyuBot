@@ -84,8 +84,8 @@ namespace NyuBot {
             .AddSingleton<IDiscordClientWrapper, DiscordClientWrapper>()
             .AddSingleton(new LavalinkNodeOptions {
                 AllowResuming = true,
-                Password = "",
-                RestUri = "http://localhost:8080",
+                Password = "LAVA",
+                RestUri = "http://localhost:2333",
                 DisconnectOnStop = false
             })
             .AddSingleton<DatabaseService>()

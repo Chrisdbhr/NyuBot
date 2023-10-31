@@ -1,3 +1,4 @@
+using System;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 

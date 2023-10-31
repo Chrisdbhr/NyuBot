@@ -1,10 +1,12 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using Discord;
 using Discord.Commands;
+using Discord.Net;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
@@ -17,19 +19,51 @@ namespace NyuBot.Modules {
 
 		private const string PATH = "WeatherInfo/";
 		private readonly WeatherService _service;
-		private readonly DiscordSocketClient _discord;
+		private readonly DiscordSocketClient client;
 		private readonly IConfigurationRoot _config;
 		private readonly TimeSpan MAX_CACHE_AGE = TimeSpan.FromMinutes(30);
 
-		public WeatherModule(DiscordSocketClient discord, IConfigurationRoot config, WeatherService service) {
+		public WeatherModule(DiscordSocketClient client, IConfigurationRoot config, WeatherService service) {
 			this._service = service;
-			this._discord = discord;
+			this.client = client;
 			this._config = config;
+
+			client.Ready += Client_Ready;
+			client.SlashCommandExecuted += SlashCommandHandler;
 		}
 
+		private async Task Client_Ready() {
+			Console.WriteLine("Registering guild commnads");
+			var mainGuild = client.GetGuild(264800866169651203);
 
-		[Command("weather"), Alias("w")]
-		[Summary("Show weather for a given city")]
+			var command_clima = new SlashCommandBuilder {
+				Name = "clima",
+				Description = "Ver o clima de uma região",
+				IsDMEnabled = false,
+				IsNsfw = false
+			};
+
+			try {
+				await mainGuild.CreateApplicationCommandAsync(command_clima.Build());
+				await client.CreateGlobalApplicationCommandAsync(command_clima.Build());
+			}
+			catch(HttpException exception) {
+				// If our command was invalid, we should catch an ApplicationCommandException. This exception contains the path of the error as well as the error message. You can serialize the Error field in the exception to get a visual of where your error is.
+				var json = JsonConvert.SerializeObject(exception.Errors, Formatting.Indented);
+
+				// You can send this error somewhere or just print it to the console, for this example we're just going to print it.
+				Console.WriteLine(json);
+			}
+		}
+
+		private async Task SlashCommandHandler(SocketSlashCommand command) {
+			switch (command.Data.Name) {
+				case "clima":
+					await this.ShowWeather(command.Data.Options.First().Value.ToString());
+					break;
+			}
+		}
+
 		public async Task ShowWeather(params string[] locationStrings) {
 			if (locationStrings.Length <= 0) return;
 			var location = locationStrings.CJoin();
